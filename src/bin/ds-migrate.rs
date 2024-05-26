@@ -6,10 +6,10 @@ use std::fs;
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    #[arg(short, long, default_value = "127.0.0.1:3002")]
-    bind_addr: String,
-    #[arg(short, long, default_value = "declare-schema.toml")]
-    config_file: String,
+    #[arg(short, long)]
+    a_file: String,
+    #[arg(short, long)]
+    b_file: String,
     #[arg(short, long, value_enum, default_value = "DEBUG")]
     log_level: tracing::Level,
     #[arg(long, action)]
@@ -29,23 +29,28 @@ pub fn read_app_config(path: String) -> crate::AppConfig {
 
     app_config
 }
+pub fn read_file(path: String) -> String {
+    let file_error_msg = format!("Could not read file {}", path);
+    let file_contents = fs::read_to_string(path).expect(&file_error_msg);
+    file_contents
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     eprintln!("Args {args:?}");
-    let config = read_app_config(args.config_file);
-    let pool = sqlx::PgPool::connect(&config.database_url)
-        .await
-        .expect("Connection attempt");
-    let mut conn = pool.acquire().await.expect("Get a connection");
+    let a_file = read_file(args.a_file);
+    let b_file = read_file(args.b_file);
+    //let config = read_app_config(args.config_file);
+    //let pool = sqlx::PgPool::connect(&config.database_url)
+    //    .await
+    //    .expect("Connection attempt");
+    //let mut conn = pool.acquire().await.expect("Get a connection");
     //let mut current = sqlmo::Schema::try_from_postgres(&mut conn, "public").await.expect("Get schema");
     //current.name_schema("public");
     //
-    let schema_str = include_str!("../../schema/schema.sql");
-    let from_str = include_str!("../../schema/from.sql");
-    let end_state = app_schema(&schema_str)?;
-    let start_state = app_schema(&from_str)?;
+    let start_state = app_schema(&a_file)?;
+    let end_state = app_schema(&b_file)?;
     //let mut options = sqlmo::MigrationOptions::default();
     //options.allow_destructive = true;
     //let migration = current.migrate_to(end_state, &options).expect("Generate migrations");
@@ -72,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
     let a = WrappedCreateTable::try_from(start_state.first().unwrap().to_owned())?;
     let b = WrappedCreateTable::try_from(end_state.first().unwrap().to_owned())?;
     for s in from_to(from_tables, end_tables)? {
-        eprintln!("I should execute: {}", s.to_string());
+        println!("{}", s.to_string());
     }
 
     Ok(())
