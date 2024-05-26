@@ -1,0 +1,29 @@
+[package]
+name = "delcare_schema"
+version = "0.0.1"
+edition = "2021"
+description = ""
+license = "Apache-2.0"
+publish = false
+
+[[bin]]
+name = "ds-migrate"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.82"
+clap = { version = "4.5.4", features = ["derive", "env"]}
+futures = "0.3.30"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.37.0", features = ["full"]}
+toml = "0.8.12"
+tracing = "0.1.40"
+
+url = "2.5.0"
+service_conventions = { version = "0.0.16", features = ["tracing", "oidc"]}
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "uuid", "time", "chrono", "rust_decimal"] }
+uuid = { version = "1.8.0", features = ["v4", "serde"] }
+thiserror = "1.0.59"
+sqlparser = "0.46.0"
