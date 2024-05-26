@@ -120,7 +120,7 @@ fn compare_contraints(
     let maybe_f_pk = f
         .iter()
         .find(|fc| matches!(fc, TableConstraint::PrimaryKey { .. }));
-    for t_constraint in t {
+    for t_constraint in t.clone() {
         match &t_constraint {
             TableConstraint::PrimaryKey { name, .. } => {
                 if let Some(_f_pk) = maybe_f_pk {
@@ -134,6 +134,55 @@ fn compare_contraints(
                         location: None,
                         only: false,
                         operations: vec![AlterTableOperation::AddConstraint(t_constraint)],
+                    });
+                }
+            }
+            TableConstraint::ForeignKey { name, .. } => {
+                let to_name = name;
+                let maybe_fk = f.iter().find(|fc| {
+                    if let TableConstraint::ForeignKey { name, .. } = fc {
+                        to_name == name
+                    } else {
+                        false
+                    }
+                });
+                if let Some(_fk) = maybe_fk {
+                    eprintln!("Has fk already TODO: Check equal")
+                } else {
+                    r.push(Statement::AlterTable {
+                        name: table_name.clone(),
+                        if_exists: false,
+                        location: None,
+                        only: false,
+                        operations: vec![AlterTableOperation::AddConstraint(t_constraint)],
+                    });
+                }
+            }
+            _ => eprintln!("Contraints not supported"),
+        }
+    }
+    for f_constraint in f {
+        match &f_constraint {
+            TableConstraint::ForeignKey { name, .. } => {
+                let from_name = name;
+                let maybe_fk = &t.iter().find(|tc| {
+                    if let TableConstraint::ForeignKey { name, .. } = tc {
+                        from_name == name
+                    } else {
+                        false
+                    }
+                });
+                if let None = maybe_fk {
+                    r.push(Statement::AlterTable {
+                        name: table_name.clone(),
+                        if_exists: false,
+                        location: None,
+                        only: false,
+                        operations: vec![AlterTableOperation::DropConstraint {
+                            if_exists: false,
+                            cascade: true,
+                            name: name.clone().unwrap(),
+                        }],
                     });
                 }
             }
@@ -243,6 +292,37 @@ mod tests {
 
         let alter = vec![str_to_statement(
             r#"ALTER TABLE "test" ADD PRIMARY KEY(id)"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+
+    #[test]
+    fn test_add_foreign_key_constraint() {
+        let start = str_to_wrapped_table(r#"CREATE TABLE "test" (id uuid)"#);
+        let target = str_to_wrapped_table(
+            r#"CREATE TABLE "test" (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
+        );
+
+        let r = from_to_table(&start, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" ADD CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id)"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+    #[test]
+    fn test_drop_foreign_key_constraint() {
+        let start = str_to_wrapped_table(
+            r#"CREATE TABLE "test" (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
+        );
+        let target = str_to_wrapped_table(r#"CREATE TABLE "test" (id uuid)"#);
+
+        let r = from_to_table(&start, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" DROP CONSTRAINT fk_id CASCADE"#,
         )];
 
         assert_eq!(r, alter);
