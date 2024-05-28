@@ -1,5 +1,5 @@
 use clap::Parser;
-use delcare_schema::altertable::{from_to, WrappedCreateTable};
+use delcare_schema::altertable::{from_to, Wrapped};
 use delcare_schema::schema::app_schema;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -54,17 +54,17 @@ async fn main() -> anyhow::Result<()> {
     //let mut options = sqlmo::MigrationOptions::default();
     //options.allow_destructive = true;
     //let migration = current.migrate_to(end_state, &options).expect("Generate migrations");
-    let end_tables: anyhow::Result<Vec<WrappedCreateTable>> = end_state
+    let end_tables: anyhow::Result<Vec<Wrapped>> = end_state
         .clone()
         .into_iter()
-        .map(|s| WrappedCreateTable::try_from(s))
+        .map(|s| Wrapped::try_from(s))
         .collect();
     let end_tables = end_tables.unwrap();
 
-    let from_tables: anyhow::Result<Vec<WrappedCreateTable>> = start_state
+    let from_tables: anyhow::Result<Vec<Wrapped>> = start_state
         .clone()
         .into_iter()
-        .map(|s| WrappedCreateTable::try_from(s))
+        .map(|s| Wrapped::try_from(s))
         .collect();
     let from_tables = from_tables.unwrap();
 
@@ -74,22 +74,11 @@ async fn main() -> anyhow::Result<()> {
     //    eprintln!("Creates: {}", create.to_string());
     //}
 
-    let a = WrappedCreateTable::try_from(start_state.first().unwrap().to_owned())?;
-    let b = WrappedCreateTable::try_from(end_state.first().unwrap().to_owned())?;
+    let a = Wrapped::try_from(start_state.first().unwrap().to_owned())?;
+    let b = Wrapped::try_from(end_state.first().unwrap().to_owned())?;
     for s in from_to(from_tables, end_tables)? {
         println!("{}", s.to_string());
     }
 
     Ok(())
-}
-
-fn create_table_debug(statement: &sqlparser::ast::Statement) {
-    let a = std::matches!(statement, sqlparser::ast::Statement::CreateTable { .. });
-    eprintln!("Wha? {:?}", a);
-    match statement {
-        sqlparser::ast::Statement::CreateTable { name, .. } => {
-            eprintln!("Table Name {name}")
-        }
-        _ => panic!(""),
-    }
 }
