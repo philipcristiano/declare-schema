@@ -1,5 +1,5 @@
-use sqlparser::ast::CreateTable;
 use sqlparser::ast::{AlterTableOperation, ObjectName, Statement, TableConstraint};
+use sqlparser::ast::{CreateIndex, CreateTable};
 
 pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> anyhow::Result<Vec<Statement>> {
     if f.name != t.name {
@@ -8,7 +8,7 @@ pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> anyhow::Result<Vec<Sta
 
     let mut r = Vec::new();
     let mut column_statements = compare_columns(&f.name, &f.columns, &t.columns)?;
-    let mut constraint_statements = compare_contraints(&f.name, &f.constraints, &t.constraints)?;
+    let mut constraint_statements = compare_constraints(&f.name, &f.constraints, &t.constraints)?;
 
     r.append(&mut column_statements);
     r.append(&mut constraint_statements);
@@ -18,6 +18,9 @@ pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> anyhow::Result<Vec<Sta
 pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> anyhow::Result<Vec<Statement>> {
     let mut r: Vec<Statement> = Vec::new();
     for wrapped_to in &tos {
+        if let None = wrapped_to.name() {
+            panic!("Object should have a name")
+        }
         let matched_from = froms.iter().find(|f| f.name_and_type_equals(wrapped_to));
         match wrapped_to {
             Wrapped::CreateTable(to_table) => {
@@ -28,7 +31,13 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> anyhow::Result<Vec<Sta
                     r.push(Statement::CreateTable(to_table.clone()));
                 }
             }
-            _ => {}
+            Wrapped::CreateIndex(to_index) => {
+                if let Some(Wrapped::CreateIndex(_from)) = matched_from {
+                    eprintln!("TODO: Existing index matched, should check for changes");
+                } else {
+                    r.push(Statement::CreateIndex(to_index.clone()));
+                }
+            }
         }
     }
 
@@ -44,6 +53,20 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> anyhow::Result<Vec<Sta
                     restrict: false,
                     temporary: false,
                 }),
+
+                Wrapped::CreateIndex(ci) => {
+                    if let Some(name) = ci.name.clone() {
+                        r.push(Statement::Drop {
+                            object_type: sqlparser::ast::ObjectType::Index,
+                            if_exists: false,
+                            names: vec![name],
+                            cascade: true,
+                            purge: false,
+                            restrict: false,
+                            temporary: false,
+                        })
+                    }
+                }
             }
         }
     }
@@ -80,7 +103,9 @@ fn compare_columns(
         eprintln!("find column {}", t_column);
         let maybe_f_column = f.iter().find(|fi| fi.name == t_column.name);
         if let Some(f_column) = maybe_f_column {
-            eprintln!("matching column {}", f_column)
+            eprintln!("matching column {}", f_column);
+            let mut column_statements = compare_column(&table_name, &f_column, &t_column)?;
+            r.append(&mut column_statements);
         } else {
             r.push(Statement::AlterTable {
                 name: table_name.clone(),
@@ -98,8 +123,64 @@ fn compare_columns(
     }
     Ok(r)
 }
+fn compare_column(
+    table_name: &ObjectName,
+    f: &sqlparser::ast::ColumnDef,
+    t: &sqlparser::ast::ColumnDef,
+) -> anyhow::Result<Vec<Statement>> {
+    let mut r = Vec::new();
+    for to_opt in &t.options {
+        match &to_opt.option {
+            sqlparser::ast::ColumnOption::NotNull => {
+                let from_not_null = &f
+                    .options
+                    .iter()
+                    .find(|f_opt| matches!(f_opt.option, sqlparser::ast::ColumnOption::NotNull));
+                if let None = from_not_null {
+                    r.push(Statement::AlterTable {
+                        name: table_name.clone(),
+                        if_exists: false,
+                        location: None,
+                        only: false,
+                        operations: vec![AlterTableOperation::AlterColumn {
+                            column_name: t.name.clone(),
+                            op: sqlparser::ast::AlterColumnOperation::SetNotNull,
+                        }],
+                    });
+                }
+            }
 
-fn compare_contraints(
+            x => eprintln!("Column Option not supported yet {:?}", x),
+        }
+    }
+    for f_opt in &f.options {
+        match &f_opt.option {
+            sqlparser::ast::ColumnOption::NotNull => {
+                let to_not_null = &t
+                    .options
+                    .iter()
+                    .find(|to_opt| matches!(to_opt.option, sqlparser::ast::ColumnOption::NotNull));
+                if let None = to_not_null {
+                    r.push(Statement::AlterTable {
+                        name: table_name.clone(),
+                        if_exists: false,
+                        location: None,
+                        only: false,
+                        operations: vec![AlterTableOperation::AlterColumn {
+                            column_name: t.name.clone(),
+                            op: sqlparser::ast::AlterColumnOperation::DropNotNull,
+                        }],
+                    });
+                }
+            }
+
+            x => eprintln!("Column Option not supported yet {:?}", x),
+        }
+    }
+    Ok(r)
+}
+
+fn compare_constraints(
     table_name: &ObjectName,
     f: &Vec<sqlparser::ast::TableConstraint>,
     t: &Vec<sqlparser::ast::TableConstraint>,
@@ -151,7 +232,7 @@ fn compare_contraints(
                     });
                 }
             }
-            _ => eprintln!("Contraints not supported"),
+            x => eprintln!("Constraints not supported {:?}", x),
         }
     }
     for f_constraint in f {
@@ -179,7 +260,8 @@ fn compare_contraints(
                     });
                 }
             }
-            _ => eprintln!("Contraints not supported"),
+            TableConstraint::PrimaryKey { .. } => {}
+            x => eprintln!("Contraints not supported, {:?}", x),
         }
     }
     Ok(r)
@@ -187,30 +269,43 @@ fn compare_contraints(
 
 pub enum Wrapped {
     CreateTable(CreateTable),
+    CreateIndex(CreateIndex),
 }
 
 impl Wrapped {
     fn name_and_type_equals(&self, other: &Wrapped) -> bool {
+        // Unnamed items shouldn't match
+        if let (None, None) = (self.name(), other.name()) {
+            return false;
+        }
         match self {
             Self::CreateTable(ct) => {
                 if let Self::CreateTable(other_table) = other {
                     return ct.name == other_table.name;
                 }
             }
+            Self::CreateIndex(ci) => {
+                if let Self::CreateIndex(other_index) = other {
+                    return ci.name == other_index.name;
+                }
+            }
         }
         return false;
     }
 
-    fn name(&self) -> &ObjectName {
+    fn name(&self) -> Option<ObjectName> {
         match self {
-            Wrapped::CreateTable(wct) => &wct.name,
+            Wrapped::CreateTable(wct) => Some(wct.name.clone()),
+            Wrapped::CreateIndex(wci) => wci.name.clone(),
         }
     }
 
     pub fn try_from(s: Statement) -> anyhow::Result<Wrapped> {
         match s {
             Statement::CreateTable(ct) => Ok(Wrapped::CreateTable(ct)),
-            _ => Err(anyhow::anyhow!("Not a CreateTable")),
+            Statement::CreateIndex(ci) => Ok(Wrapped::CreateIndex(ci)),
+
+            _ => Err(anyhow::anyhow!("{s} Not a CreateTable")),
         }
     }
 }
@@ -244,10 +339,39 @@ mod tests {
 
         assert_eq!(r, alter);
     }
+
+    #[test]
+    fn test_alter_column_not_null() {
+        let empty_table = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
+        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid NOT NULL)"#);
+
+        let r = from_to_table(&empty_table, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" ALTER COLUMN id SET NOT NULL"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+
+    #[test]
+    fn test_alter_column_drop_not_null() {
+        let empty_table = str_to_create_table(r#"CREATE TABLE "test" (id uuid NOT NULL)"#);
+        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
+
+        let r = from_to_table(&empty_table, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" ALTER COLUMN id DROP NOT NULL"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+
     #[test]
     fn test_add_table() {
         let empty = vec![];
-        let target = vec![str_to_wrapped_table(r#"CREATE TABLE "test" (id uuid)"#)];
+        let target = vec![str_to_wrapped(r#"CREATE TABLE "test" (id uuid)"#)];
 
         let r = from_to(empty, target).expect("works");
 
@@ -259,7 +383,7 @@ mod tests {
     #[test]
     fn test_drop_table() {
         let target = vec![];
-        let start = vec![str_to_wrapped_table(r#"CREATE TABLE "test" (id uuid)"#)];
+        let start = vec![str_to_wrapped(r#"CREATE TABLE "test" (id uuid)"#)];
 
         let r = from_to(start, target).expect("works");
 
@@ -313,24 +437,37 @@ mod tests {
         assert_eq!(r, alter);
     }
 
-    //#[test]
-    // fn test_add_index() {
-    //     let start = vec![];
-    //     let target = vec![str_to_statement(r#"CREATE INDEX idx_id on test (id)"#)];
+    #[test]
+    fn test_add_index() {
+        let start = vec![];
+        let target = vec![str_to_wrapped(r#"CREATE INDEX idx_id on test (id)"#)];
 
-    //     let r = from_to(&start, &target).expect("works");
+        let r = from_to(start, target).expect("works");
 
-    //     let alter = vec![str_to_statement(
-    //         r#"ALTER TABLE "test" ADD CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id)"#,
-    //     )];
+        let alter = vec![str_to_statement(r#"CREATE INDEX idx_id on test (id)"#)];
 
-    //     assert_eq!(r, alter);
-    // }
+        assert_eq!(r, alter);
+    }
 
-    fn str_to_wrapped_table(s: &str) -> Wrapped {
+    #[test]
+    fn test_add_index_compare() {
+        let named_index = str_to_wrapped(r#"CREATE INDEX idx_id on test (id)"#);
+        let unnamed_index = str_to_wrapped(r#"CREATE INDEX on test (id)"#);
+
+        // One name and one missing name shouldn't match
+        let matched = Wrapped::name_and_type_equals(&named_index, &unnamed_index);
+        assert!(!matched);
+
+        // Unnamed items shouldn't match
+        let matched = Wrapped::name_and_type_equals(&unnamed_index, &unnamed_index);
+        assert!(!matched);
+    }
+
+    fn str_to_wrapped(s: &str) -> Wrapped {
         let ast = str_to_statement(s);
         match ast {
             Statement::CreateTable(ct) => Wrapped::CreateTable(ct),
+            Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
             _ => panic!("Expected a CREATE TABLE statement"),
         }
     }
