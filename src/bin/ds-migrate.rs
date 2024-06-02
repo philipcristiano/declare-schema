@@ -3,34 +3,22 @@ use declare_schema::altertable::{from_to, Wrapped};
 use declare_schema::schema::app_schema;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::{stdin,stdout,Write};
 
 #[derive(Parser, Debug)]
 pub struct Args {
-    //#[arg(short, long)]
-    //a_file: String,
     #[arg(short, long)]
-    b_file: String,
+    to: String,
     #[arg(short, long, value_enum, default_value = "DEBUG")]
     log_level: tracing::Level,
     #[arg(long, action)]
     log_json: bool,
-    #[arg(short, long, default_value = "folio.toml")]
-    config_file: String,
+    #[arg(long, action)]
+    execute: bool,
+    #[arg(long, action, default_value = "true")]
+    apply_execute: bool
 }
 
-#[derive(Clone, Debug, Deserialize)]
-struct AppConfig {
-    database_url: String,
-}
-
-pub fn read_app_config(path: String) -> crate::AppConfig {
-    let config_file_error_msg = format!("Could not read config file {}", path);
-    let config_file_contents = fs::read_to_string(path).expect(&config_file_error_msg);
-    let app_config: crate::AppConfig =
-        toml::from_str(&config_file_contents).expect("Problems parsing config file");
-
-    app_config
-}
 pub fn read_file(path: String) -> String {
     let file_error_msg = format!("Could not read file {}", path);
     let file_contents = fs::read_to_string(path).expect(&file_error_msg);
@@ -42,19 +30,12 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     eprintln!("Args {args:?}");
     //let a_file = read_file(args.a_file);
-    let b_file = read_file(args.b_file);
-    let config = read_app_config(args.config_file);
-    let pool = sqlx::PgPool::connect(&config.database_url).await?;
+    let to_file = read_file(args.to);
+    let pg_connect_opts = sqlx::postgres::PgConnectOptions::new();
+    let pool = sqlx::PgPool::connect_with(pg_connect_opts).await?;
 
     let start_from_db = declare_schema::source_postgres::from_pool(&pool).await?;
-    //let mut current = sqlmo::Schema::try_from_postgres(&mut conn, "public").await.expect("Get schema");
-    //current.name_schema("public");
-    //
-    //let start_state = app_schema(&a_file)?;
-    let end_state = app_schema(&b_file)?;
-    //let mut options = sqlmo::MigrationOptions::default();
-    //options.allow_destructive = true;
-    //let migration = current.migrate_to(end_state, &options).expect("Generate migrations");
+    let end_state = app_schema(&to_file)?;
     let end_tables: anyhow::Result<Vec<Wrapped>> = end_state
         .clone()
         .into_iter()
@@ -62,27 +43,30 @@ async fn main() -> anyhow::Result<()> {
         .collect();
     let end_tables = end_tables.unwrap();
 
-    //let from_tables: anyhow::Result<Vec<Wrapped>> = start_state
-    //    .clone()
-    //    .into_iter()
-    //    .map(|s| Wrapped::try_from(s))
-    //    .collect();
-    //let from_tables = from_tables.unwrap();
+    let steps = from_to(start_from_db, end_tables)?;
+    for s in steps.clone() {
+        println!("{};", s.to_string());
+    };
+    if args.execute {
+        if !args.apply_execute {
+            println!("Apply? (y/N)");
+            let mut input=String::new();
+            let _=stdout().flush();
+            stdin().read_line(&mut input).expect("Did not enter a correct string");
+            if input.to_lowercase().trim() != "y".to_string() {
+                println!("Not executing");
+                return Ok(())
+            }
+        }
+        println!("Executing!");
 
-    //for create in from_tables.clone() {
-
-    //    //eprintln!("AST: {:?}", create);
-    //    eprintln!("Creates: {}", create.to_string());
-    //}
-
-    //let a = Wrapped::try_from(start_state.first().unwrap().to_owned())?;
-    //let b = Wrapped::try_from(end_state.first().unwrap().to_owned())?;
-    //for s in from_to(from_tables, end_tables)? {
-    //    println!("{}", s.to_string());
-    //}
-
-    for s in from_to(start_from_db, end_tables)? {
-        println!("{}", s.to_string());
+        let mut conn = pool.acquire().await?;
+        sqlx::query("SET lock_timeout TO 5000").execute(&mut *conn).await?;
+        for s in steps {
+            println!("Executing statement: {}", s);
+            sqlx::query(&s.to_string()).execute(&mut *conn).await?;
+            println!("Executed.");
+        }
     }
 
     Ok(())

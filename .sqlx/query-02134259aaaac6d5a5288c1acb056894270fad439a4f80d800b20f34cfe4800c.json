@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            conname,\n            pg_catalog.pg_get_constraintdef(r.oid, true) as definition\n        FROM pg_catalog.pg_constraint r\n        WHERE r.conrelid = $1::regclass\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "conname",
+        "type_info": "Name"
+      },
+      {
+        "ordinal": 1,
+        "name": "definition",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "regclass",
+            "kind": "Simple"
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "02134259aaaac6d5a5288c1acb056894270fad439a4f80d800b20f34cfe4800c"
+}

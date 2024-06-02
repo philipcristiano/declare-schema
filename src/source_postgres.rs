@@ -23,7 +23,7 @@ async fn pg_indexes(pool: &sqlx::PgPool, schema: String) -> anyhow::Result<Vec<W
         FROM pg_catalog.pg_indexes AS pgi
         LEFT JOIN information_schema.table_constraints as tc
         ON pgi.indexname = tc.constraint_name
-        WHERE schemaname =  $1
+        WHERE schemaname = $1
         AND constraint_name IS NULL ",
         schema
     )

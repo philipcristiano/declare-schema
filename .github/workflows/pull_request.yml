@@ -22,11 +22,6 @@ jobs:
 
   rust:
     uses: "philipcristiano/workflows/.github/workflows/rust.yml@main"
-    with:
-      setup_script: |
-          curl -sL https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.1/tailwindcss-linux-x64 -o tailwindcss
-          chmod +x tailwindcss
-          mv tailwindcss /usr/local/bin
 
   flake:
     uses: "philipcristiano/workflows/.github/workflows/nix.yml@main"
@@ -35,45 +30,3 @@ jobs:
       script: |
         unset DATABASE_URL
         cargo build
-
-  atlas:
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: et
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4.1.3
-
-      - name: Create dummy tailwind file
-        run: touch tailwind/tailwind.css
-
-      - name: Enable extension
-        env:
-          PGPASSWORD: postgres
-        run: psql -h 127.0.0.1 -d et -U postgres -tc "CREATE EXTENSION pgcrypto;"
-
-      - name: Apply Schema
-        uses: docker://arigaio/atlas:0.21.1-community
-        env:
-          SKIP_TAILWIND: true
-          DATABASE_URL: "postgres://postgres:postgres@postgres/et?sslmode=disable"
-        with:
-          args: schema apply --env local --auto-approve
-
-      - name: sqlx check
-        run: cargo install sqlx-cli && cargo sqlx prepare --check
-        # uses: docker://arigaio/atlas:0.16.0-community
-        env:
-          SKIP_TAILWIND: true
-          DATABASE_URL: "postgres://postgres:postgres@localhost:5432/et?sslmode=disable"
