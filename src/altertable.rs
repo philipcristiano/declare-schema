@@ -149,6 +149,37 @@ fn compare_column(
                     });
                 }
             }
+            sqlparser::ast::ColumnOption::Default(expr) => {
+                let from_default = &f
+                    .options
+                    .iter()
+                    .find(|f_opt| matches!(f_opt.option, sqlparser::ast::ColumnOption::Default(_)));
+                // Create the alter statement but dont push it yet
+                let alter = Statement::AlterTable {
+                    name: table_name.clone(),
+                    if_exists: false,
+                    location: None,
+                    only: false,
+                    operations: vec![AlterTableOperation::AlterColumn {
+                        column_name: t.name.clone(),
+                        op: sqlparser::ast::AlterColumnOperation::SetDefault {
+                            value: expr.to_owned(),
+                        },
+                    }],
+                };
+                match from_default {
+                    // There is no default previously, alter the table
+                    None => r.push(alter),
+                    Some(f_opt) => {
+                        let to_opt_option = &to_opt.option;
+                        // If the from and to options are different, alter the table
+                        if f_opt.option != to_opt_option.clone() {
+                            r.push(alter)
+                        }
+                    }
+                }
+                if let None = from_default {}
+            }
 
             x => eprintln!("Column Option not supported yet {:?}", x),
         }
@@ -169,6 +200,24 @@ fn compare_column(
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::DropNotNull,
+                        }],
+                    });
+                }
+            }
+
+            sqlparser::ast::ColumnOption::Default(_) => {
+                let to_default = &t.options.iter().find(|to_opt| {
+                    matches!(to_opt.option, sqlparser::ast::ColumnOption::Default(_))
+                });
+                if let None = to_default {
+                    r.push(Statement::AlterTable {
+                        name: table_name.clone(),
+                        if_exists: false,
+                        location: None,
+                        only: false,
+                        operations: vec![AlterTableOperation::AlterColumn {
+                            column_name: t.name.clone(),
+                            op: sqlparser::ast::AlterColumnOperation::DropDefault,
                         }],
                     });
                 }
@@ -363,6 +412,50 @@ mod tests {
 
         let alter = vec![str_to_statement(
             r#"ALTER TABLE "test" ALTER COLUMN id DROP NOT NULL"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+
+    #[test]
+    fn test_alter_column_set_default() {
+        let empty_table = str_to_create_table(r#"CREATE TABLE "test" (name varchar)"#);
+        let target = str_to_create_table(r#"CREATE TABLE "test" (name varchar DEFAULT 'foo')"#);
+
+        let r = from_to_table(&empty_table, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" ALTER COLUMN name SET DEFAULT 'foo'"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+
+    #[test]
+    fn test_alter_column_set_new_default() {
+        let empty_table =
+            str_to_create_table(r#"CREATE TABLE "test" (name varchar DEFAULT 'foo')"#);
+        let target = str_to_create_table(r#"CREATE TABLE "test" (name varchar DEFAULT 'bar')"#);
+
+        let r = from_to_table(&empty_table, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" ALTER COLUMN name SET DEFAULT 'bar'"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+
+    #[test]
+    fn test_alter_column_drop_default() {
+        let empty_table =
+            str_to_create_table(r#"CREATE TABLE "test" (name varchar DEFAULT 'foo')"#);
+        let target = str_to_create_table(r#"CREATE TABLE "test" (name varchar )"#);
+
+        let r = from_to_table(&empty_table, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" ALTER COLUMN name DROP DEFAULT"#,
         )];
 
         assert_eq!(r, alter);

@@ -154,6 +154,16 @@ async fn table_columns(
             None => {
                 eprintln!("Column unknown nullable TODO FIXME")
             }
+        };
+
+        match string_to_expr(dbtc.column_default) {
+            Ok(expr) => column_options.push(sqlparser::ast::ColumnOptionDef {
+                name: None,
+                option: sqlparser::ast::ColumnOption::Default(expr),
+            }),
+            Err(e) => {
+                eprintln!("Column unknown default /error {e}")
+            }
         }
         r.push(ColumnDef {
             name: string_to_ident(dbtc.column_name)?,
@@ -293,6 +303,17 @@ fn string_to_object_name(os: Option<String>) -> anyhow::Result<ObjectName> {
         Ok(parser.parse_object_name(false)?)
     } else {
         Err(anyhow::anyhow!("No string value"))
+    }
+}
+
+fn string_to_expr(os: Option<String>) -> anyhow::Result<sqlparser::ast::Expr> {
+    if let Some(s) = os {
+        let dialect = sqlparser::dialect::PostgreSqlDialect {};
+        let parser = sqlparser::parser::Parser::new(&dialect);
+        let mut parser = parser.try_with_sql(&s)?;
+        Ok(parser.parse_expr()?)
+    } else {
+        Err(anyhow::anyhow!("No expr value"))
     }
 }
 
