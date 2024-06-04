@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            schemaname,\n            tablename,\n            indexname,\n            indexdef\n        FROM pg_catalog.pg_indexes AS pgi\n        LEFT JOIN information_schema.table_constraints as tc\n        ON pgi.indexname = tc.constraint_name\n        WHERE schemaname = $1\n        AND constraint_name IS NULL ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "schemaname",
+        "type_info": "Name"
+      },
+      {
+        "ordinal": 1,
+        "name": "tablename",
+        "type_info": "Name"
+      },
+      {
+        "ordinal": 2,
+        "name": "indexname",
+        "type_info": "Name"
+      },
+      {
+        "ordinal": 3,
+        "name": "indexdef",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Name"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "cdeaaff0b9f3c13c9313256739cb08a07b5d28d7cd09c7306da7c9f9efa1067d"
+}

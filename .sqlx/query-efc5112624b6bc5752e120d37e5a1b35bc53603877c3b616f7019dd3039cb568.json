@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select table_schema, table_name from information_schema.tables where table_schema = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "table_schema",
+        "type_info": "Name"
+      },
+      {
+        "ordinal": 1,
+        "name": "table_name",
+        "type_info": "Name"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Name"
+      ]
+    },
+    "nullable": [
+      true,
+      true
+    ]
+  },
+  "hash": "efc5112624b6bc5752e120d37e5a1b35bc53603877c3b616f7019dd3039cb568"
+}

@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n            table_schema,\n            table_name,\n            column_name,\n            ordinal_position,\n            column_default,\n            is_nullable,\n            data_type\n        FROM information_schema.columns\n        WHERE table_schema = $1\n        AND table_name = $2\n        ORDER BY ordinal_position",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "table_schema",
+        "type_info": "Name"
+      },
+      {
+        "ordinal": 1,
+        "name": "table_name",
+        "type_info": "Name"
+      },
+      {
+        "ordinal": 2,
+        "name": "column_name",
+        "type_info": "Name"
+      },
+      {
+        "ordinal": 3,
+        "name": "ordinal_position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "column_default",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_nullable",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "data_type",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Name",
+        "Name"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "d1bf75a92a202716bdee674a88363f1ec94d4de1b2744db9e1113cda1a9d9d9b"
+}
