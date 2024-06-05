@@ -15,7 +15,7 @@ pub struct Args {
     log_json: bool,
     #[arg(long, action)]
     execute: bool,
-    #[arg(long, action, default_value = "true")]
+    #[arg(long, action, default_value = "false")]
     apply_execute: bool,
 }
 
