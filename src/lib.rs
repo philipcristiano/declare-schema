@@ -17,7 +17,9 @@ pub async fn migrate_from_string(src: &String, pool: &PgPool) -> anyhow::Result<
     let steps = crate::altertable::from_to(src_state, end_state)?;
 
     let mut conn = pool.acquire().await?;
-    sqlx::query("SET lock_timeout TO 5000").execute(&mut *conn).await?;
+    sqlx::query("SET lock_timeout TO 5000")
+        .execute(&mut *conn)
+        .await?;
     for s in steps {
         sqlx::query(&s.to_string()).execute(&mut *conn).await?;
     }

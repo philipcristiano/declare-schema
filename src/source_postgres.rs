@@ -1,7 +1,7 @@
 use crate::altertable::Wrapped;
-use std::collections::HashMap;
-use sqlparser::ast::{ColumnDef, Ident, ObjectName};
 use sqlparser::ast::helpers::stmt_create_table::CreateTableBuilder;
+use sqlparser::ast::{ColumnDef, Ident, ObjectName};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
 struct PGIndex {
