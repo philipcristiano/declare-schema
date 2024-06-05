@@ -2,8 +2,8 @@ pub mod altertable;
 pub mod schema;
 pub mod source_postgres;
 
-use sqlx::PgPool;
 use altertable::Wrapped;
+use sqlx::PgPool;
 
 pub async fn migrate_from_string(src: &String, pool: &PgPool) -> anyhow::Result<()> {
     let src_state = crate::source_postgres::from_pool(&pool).await?;

@@ -3,7 +3,7 @@ use declare_schema::altertable::{from_to, Wrapped};
 use declare_schema::schema::app_schema;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::{stdin,stdout,Write};
+use std::io::{stdin, stdout, Write};
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -16,7 +16,7 @@ pub struct Args {
     #[arg(long, action)]
     execute: bool,
     #[arg(long, action, default_value = "true")]
-    apply_execute: bool
+    apply_execute: bool,
 }
 
 pub fn read_file(path: String) -> String {

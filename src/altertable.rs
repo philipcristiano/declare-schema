@@ -281,6 +281,29 @@ fn compare_constraints(
                     });
                 }
             }
+            TableConstraint::Check { name, .. } => {
+                let to_name = name;
+                let maybe_check = f.iter().find(|check| {
+                    if let TableConstraint::Check { name, .. } = check {
+                        to_name == name
+                    } else {
+                        false
+                    }
+                });
+                if let Some(_fk) = maybe_check {
+                    eprintln!("Has fk already TODO: Check equal")
+                } else {
+                    r.push(Statement::AlterTable {
+                        name: table_name.clone(),
+                        if_exists: false,
+                        location: None,
+                        only: false,
+                        operations: vec![AlterTableOperation::AddConstraint(
+                            t_constraint.to_owned(),
+                        )],
+                    });
+                }
+            }
             x => eprintln!("Constraints not supported {:?}", x),
         }
     }
@@ -296,6 +319,29 @@ fn compare_constraints(
                     }
                 });
                 if let None = maybe_fk {
+                    r.push(Statement::AlterTable {
+                        name: table_name.clone(),
+                        if_exists: false,
+                        location: None,
+                        only: false,
+                        operations: vec![AlterTableOperation::DropConstraint {
+                            if_exists: false,
+                            cascade: true,
+                            name: name.clone().unwrap(),
+                        }],
+                    });
+                }
+            }
+            TableConstraint::Check { name, .. } => {
+                let from_name = name;
+                let maybe_check = &t.iter().find(|check| {
+                    if let TableConstraint::Check { name, .. } = check {
+                        from_name == name
+                    } else {
+                        false
+                    }
+                });
+                if let None = maybe_check {
                     r.push(Statement::AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
@@ -525,6 +571,38 @@ mod tests {
 
         let alter = vec![str_to_statement(
             r#"ALTER TABLE "test" DROP CONSTRAINT fk_id CASCADE"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+
+    #[test]
+    fn test_add_check_constraint() {
+        let start = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
+        let target = str_to_create_table(
+            r#"CREATE TABLE "test" (id uuid, CONSTRAINT check_id CHECK (id = 1))"#,
+        );
+
+        let r = from_to_table(&start, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" ADD CONSTRAINT check_id CHECK (id = 1)"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+
+    #[test]
+    fn test_drop_check_constraint() {
+        let start = str_to_create_table(
+            r#"CREATE TABLE "test" (id uuid, CONSTRAINT check_id CHECK (id = 1))"#,
+        );
+        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
+
+        let r = from_to_table(&start, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" DROP CONSTRAINT check_id CASCADE"#,
         )];
 
         assert_eq!(r, alter);
