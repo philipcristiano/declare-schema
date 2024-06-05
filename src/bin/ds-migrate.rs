@@ -46,22 +46,26 @@ async fn main() -> anyhow::Result<()> {
     let steps = from_to(start_from_db, end_tables)?;
     for s in steps.clone() {
         println!("{};", s.to_string());
-    };
+    }
     if args.execute {
         if !args.apply_execute {
             println!("Apply? (y/N)");
-            let mut input=String::new();
-            let _=stdout().flush();
-            stdin().read_line(&mut input).expect("Did not enter a correct string");
+            let mut input = String::new();
+            let _ = stdout().flush();
+            stdin()
+                .read_line(&mut input)
+                .expect("Did not enter a correct string");
             if input.to_lowercase().trim() != "y".to_string() {
                 println!("Not executing");
-                return Ok(())
+                return Ok(());
             }
         }
         println!("Executing!");
 
         let mut conn = pool.acquire().await?;
-        sqlx::query("SET lock_timeout TO 5000").execute(&mut *conn).await?;
+        sqlx::query("SET lock_timeout TO 5000")
+            .execute(&mut *conn)
+            .await?;
         for s in steps {
             println!("Executing statement: {}", s);
             sqlx::query(&s.to_string()).execute(&mut *conn).await?;
