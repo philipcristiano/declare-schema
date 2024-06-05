@@ -159,7 +159,6 @@ async fn table_columns(
     Ok(r)
 }
 
-
 pub async fn from_pool(pool: &sqlx::PgPool) -> anyhow::Result<Vec<Wrapped>> {
     //let r = Vec::new();
     let mut table_map: HashMap<ObjectName, CreateTableBuilder> = HashMap::new();
