@@ -1,5 +1,6 @@
 use sqlparser::ast::{AlterTableOperation, ObjectName, Statement, TableConstraint};
 use sqlparser::ast::{CreateIndex, CreateTable};
+use std::fmt::Display;
 
 pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> anyhow::Result<Vec<Statement>> {
     if f.name != t.name {
@@ -411,6 +412,17 @@ fn compare_constraints(
 pub enum Wrapped {
     CreateTable(CreateTable),
     CreateIndex(CreateIndex),
+}
+
+impl Display for Wrapped {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Wrapped::CreateTable(wct) => wct.fmt(f),
+            Wrapped::CreateIndex(wci) => {
+                sqlparser::ast::Statement::CreateIndex(wci.to_owned()).fmt(f)
+            }
+        }
+    }
 }
 
 impl Wrapped {
