@@ -2906,8 +2906,8 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.46.0"
-source = "git+https://github.com/philipcristiano/sqlparser-rs.git?branch=create-table-struct#ebb57a5fb1c79ec29fc453616e3da1baa1728eb5"
+version = "0.47.0"
+source = "git+https://github.com/sqlparser-rs/sqlparser-rs.git?branch=main#a0f511cb21efd9e992fb4c6ef273ef41802d308c"
 dependencies = [
  "log",
 ]
