@@ -75,6 +75,41 @@ async fn table_constraints(
     Ok(r)
 }
 
+#[derive(Clone, Debug)]
+struct PGExtension {
+    extname: Option<String>,
+}
+
+async fn pg_extensions(c: &sqlx::PgPool) -> anyhow::Result<Vec<Wrapped>> {
+    let mut r = Vec::new();
+
+    let db_extensions = sqlx::query_as!(
+        PGExtension,
+        "
+        SELECT
+            extname
+
+        FROM pg_extension pge
+        "
+    )
+    .fetch_all(c)
+    .await?;
+
+    for ext in db_extensions {
+        let name_ident = string_to_ident(ext.extname)?;
+        let statement = sqlparser::ast::Statement::CreateExtension {
+            name: name_ident,
+            cascade: false,
+            if_not_exists: false,
+            schema: None,
+            version: None,
+        };
+        let wrapped = Wrapped::try_from(statement)?;
+        r.push(wrapped);
+    }
+    Ok(r)
+}
+
 struct PGTable {
     table_schema: Option<String>,
     table_name: Option<String>,
@@ -193,6 +228,8 @@ pub async fn from_pool(pool: &sqlx::PgPool) -> anyhow::Result<Vec<Wrapped>> {
 
     let mut indexes = pg_indexes(&pool, schema.to_string()).await?;
     re.append(&mut indexes);
+    let mut extensions = pg_extensions(&pool).await?;
+    re.append(&mut extensions);
     Ok(re)
 }
 
