@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 use declare_schema::altertable::{from_to, Wrapped};
 use declare_schema::schema::app_schema;
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{stdin, stdout, Write};
 
