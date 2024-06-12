@@ -79,7 +79,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> anyhow::Result<Vec<Sta
                         })
                     }
                 }
-                Wrapped::CreateExtension { name } => eprintln!("Drop create extension {name}"),
+                Wrapped::CreateExtension { .. } => (),
             }
         }
     }
