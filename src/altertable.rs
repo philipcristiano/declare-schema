@@ -39,6 +39,17 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> anyhow::Result<Vec<Sta
                     r.push(Statement::CreateIndex(to_index.clone()));
                 }
             }
+            Wrapped::CreateExtension { name } => {
+                if let None = matched_from {
+                    r.push(Statement::CreateExtension {
+                        name: name.to_owned(),
+                        cascade: false,
+                        if_not_exists: false,
+                        schema: None,
+                        version: None,
+                    })
+                }
+            }
         }
     }
 
@@ -68,6 +79,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> anyhow::Result<Vec<Sta
                         })
                     }
                 }
+                Wrapped::CreateExtension { name } => eprintln!("Drop create extension {name}"),
             }
         }
     }
@@ -412,6 +424,7 @@ fn compare_constraints(
 pub enum Wrapped {
     CreateTable(CreateTable),
     CreateIndex(CreateIndex),
+    CreateExtension { name: sqlparser::ast::Ident },
 }
 
 impl Display for Wrapped {
@@ -421,6 +434,14 @@ impl Display for Wrapped {
             Wrapped::CreateIndex(wci) => {
                 sqlparser::ast::Statement::CreateIndex(wci.to_owned()).fmt(f)
             }
+            Wrapped::CreateExtension { name } => sqlparser::ast::Statement::CreateExtension {
+                name: name.to_owned(),
+                if_not_exists: false,
+                cascade: false,
+                schema: None,
+                version: None,
+            }
+            .fmt(f),
         }
     }
 }
@@ -442,6 +463,12 @@ impl Wrapped {
                     return ci.name == other_index.name;
                 }
             }
+            Self::CreateExtension { name } => {
+                let name1 = name;
+                if let Self::CreateExtension { name } = other {
+                    return name1 == name;
+                }
+            }
         }
         return false;
     }
@@ -450,6 +477,7 @@ impl Wrapped {
         match self {
             Wrapped::CreateTable(wct) => Some(wct.name.clone()),
             Wrapped::CreateIndex(wci) => wci.name.clone(),
+            Wrapped::CreateExtension { name } => Some(ObjectName(vec![name.clone()])),
         }
     }
 
@@ -457,6 +485,7 @@ impl Wrapped {
         match s {
             Statement::CreateTable(ct) => Ok(Wrapped::CreateTable(ct)),
             Statement::CreateIndex(ci) => Ok(Wrapped::CreateIndex(ci)),
+            Statement::CreateExtension { name, .. } => Ok(Wrapped::CreateExtension { name }),
 
             _ => Err(anyhow::anyhow!("{s} Not a CreateTable")),
         }
@@ -722,11 +751,24 @@ mod tests {
         assert!(!matched);
     }
 
+    #[test]
+    fn test_create_extension() {
+        let start = vec![];
+        let target = vec![str_to_wrapped(r#"CREATE EXTENSION ltree;"#)];
+
+        let r = from_to(start, target).expect("works");
+
+        let alter = vec![str_to_statement(r#"CREATE EXTENSION ltree;"#)];
+
+        assert_eq!(r, alter);
+    }
+
     fn str_to_wrapped(s: &str) -> Wrapped {
         let ast = str_to_statement(s);
         match ast {
             Statement::CreateTable(ct) => Wrapped::CreateTable(ct),
             Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
+            Statement::CreateExtension { name, .. } => Wrapped::CreateExtension { name },
             _ => panic!("Expected a CREATE TABLE statement"),
         }
     }
