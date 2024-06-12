@@ -19,3 +19,10 @@ Provide a CLI tool that can generate diffs of schemas and the required ALTER sta
 ### Easy development experience
 
 When embedded in an application or with a CLI tool keep an easy SQL -> DB flow that is clear to developers with an easy to modify schema.
+
+
+## Current State
+
+### Limitations
+
+`CREATE EXTENSION` - Can be created by name only. Cannot be `DROP`ed.
