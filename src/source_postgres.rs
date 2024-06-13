@@ -283,7 +283,6 @@ fn string_to_create_index(os: Option<String>) -> anyhow::Result<sqlparser::ast::
         let parser = sqlparser::parser::Parser::new(&dialect);
         let mut parser = parser.try_with_sql(&s)?;
 
-        println!("{:}", s);
         Ok(parser.parse_statement()?)
     } else {
         Err(anyhow::anyhow!("No string value"))
