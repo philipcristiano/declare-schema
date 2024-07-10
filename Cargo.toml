@@ -21,7 +21,7 @@ toml = "0.8.12"
 tracing = "0.1.40"
 
 url = "2.5.0"
-service_conventions = { version = "0.0.16", features = ["tracing"], default-features = false }
+service_conventions = { version = "0.0.17", features = ["tracing"], default-features = false }
 sqlx = { version = "0.7.4", features = ["runtime-tokio", "tls-rustls", "postgres", "macros", "uuid", "time", "chrono", "rust_decimal"] }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 thiserror = "1.0.59"
