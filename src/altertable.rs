@@ -104,6 +104,7 @@ fn compare_columns(
                 if_exists: false,
                 location: None,
                 only: false,
+                on_cluster: None,
                 operations: vec![AlterTableOperation::DropColumn {
                     column_name: f_column.name.clone(),
                     if_exists: false,
@@ -125,6 +126,7 @@ fn compare_columns(
                 if_exists: false,
                 location: None,
                 only: false,
+                on_cluster: None,
                 operations: vec![AlterTableOperation::AddColumn {
                     column_keyword: true,
                     if_not_exists: false,
@@ -155,6 +157,7 @@ fn compare_column(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::SetNotNull,
@@ -173,6 +176,7 @@ fn compare_column(
                     if_exists: false,
                     location: None,
                     only: false,
+                    on_cluster: None,
                     operations: vec![AlterTableOperation::AlterColumn {
                         column_name: t.name.clone(),
                         op: sqlparser::ast::AlterColumnOperation::SetDefault {
@@ -210,6 +214,7 @@ fn compare_column(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::DropNotNull,
@@ -228,6 +233,7 @@ fn compare_column(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::DropDefault,
@@ -265,6 +271,7 @@ fn compare_constraints(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::AddConstraint(
                             t_constraint.to_owned(),
                         )],
@@ -288,6 +295,7 @@ fn compare_constraints(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::AddConstraint(
                             t_constraint.to_owned(),
                         )],
@@ -311,6 +319,7 @@ fn compare_constraints(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::AddConstraint(
                             t_constraint.to_owned(),
                         )],
@@ -334,6 +343,7 @@ fn compare_constraints(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::AddConstraint(
                             t_constraint.to_owned(),
                         )],
@@ -360,6 +370,7 @@ fn compare_constraints(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::DropConstraint {
                             if_exists: false,
                             cascade: true,
@@ -383,6 +394,7 @@ fn compare_constraints(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::DropConstraint {
                             if_exists: false,
                             cascade: true,
@@ -406,6 +418,7 @@ fn compare_constraints(
                         if_exists: false,
                         location: None,
                         only: false,
+                        on_cluster: None,
                         operations: vec![AlterTableOperation::DropConstraint {
                             if_exists: false,
                             cascade: true,
