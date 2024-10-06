@@ -6,6 +6,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5](https://github.com/philipcristiano/declare-schema/compare/v0.0.4...v0.0.5) - 2024-10-06
+
+### Fixed
+
+- *(deps)* update rust crate sqlparser to 0.51.0
+
+### Other
+
+- Fix sqlparser update
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* update rust docker tag to v1.81
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+
 ## [0.0.4](https://github.com/philipcristiano/declare-schema/compare/v0.0.3...v0.0.4) - 2024-08-03
 
 ### Fixed
