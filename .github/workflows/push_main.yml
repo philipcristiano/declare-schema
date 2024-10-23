@@ -20,7 +20,18 @@ jobs:
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
   rust:
-    uses: "philipcristiano/workflows/.github/workflows/rust.yml@main"
+    uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
+    with:
+      db_name: declare-schema
+      db_user: declare-schema
+      db_password: declare-schema
+
+  flake:
+    uses: "philipcristiano/workflows/.github/workflows/nix.yml@main"
+    with:
+      flakes-from-devshell: true
+      script: |
+        SQLX_OFFLINE=true cargo build
 
   rust_release:
     uses: "philipcristiano/workflows/.github/workflows/rust_release.yml@main"
@@ -28,11 +39,3 @@ jobs:
     secrets:
       WF_GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-
-  flake:
-    uses: "philipcristiano/workflows/.github/workflows/nix.yml@main"
-    with:
-      flakes-from-devshell: true
-      script: |
-        unset DATABASE_URL
-        cargo build

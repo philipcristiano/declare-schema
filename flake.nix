@@ -32,7 +32,8 @@
             ];
             shellHook = ''
               export PGDATA=$PWD/pgdata
-              export DATABASE_URL="postgres://folio@localhost/folio?sslmode=disable"
+              export PGDATABASE=declare-schema
+              export PGUSER=declare-schema
             '';
           };
         }
