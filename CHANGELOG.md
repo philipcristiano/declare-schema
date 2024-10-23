@@ -6,6 +6,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.6](https://github.com/philipcristiano/declare-schema/compare/v0.0.5...v0.0.6) - 2024-10-23
+
+### Other
+
+- Remove cargo.lock
+- More tests against postgres
+- Test against Postgres
+- Update pg connect info
+- *(deps)* lock file maintenance
+- *(deps)* update rust docker tag to v1.82
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+
 ## [0.0.5](https://github.com/philipcristiano/declare-schema/compare/v0.0.4...v0.0.5) - 2024-10-06
 
 ### Fixed
