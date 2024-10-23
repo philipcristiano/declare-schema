@@ -506,7 +506,7 @@ impl Wrapped {
 }
 
 #[cfg(test)]
-mod tests {
+mod test_str_to_str {
     use super::*;
 
     #[test]
@@ -774,6 +774,51 @@ mod tests {
         let alter = vec![str_to_statement(r#"CREATE EXTENSION ltree;"#)];
 
         assert_eq!(r, alter);
+    }
+
+    fn str_to_wrapped(s: &str) -> Wrapped {
+        let ast = str_to_statement(s);
+        match ast {
+            Statement::CreateTable(ct) => Wrapped::CreateTable(ct),
+            Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
+            Statement::CreateExtension { name, .. } => Wrapped::CreateExtension { name },
+            _ => panic!("Expected a CREATE TABLE statement"),
+        }
+    }
+
+    fn str_to_create_table(s: &str) -> CreateTable {
+        let ast = str_to_statement(s);
+        match ast {
+            Statement::CreateTable(ct) => ct,
+            _ => panic!("Expected a CREATE TABLE statement"),
+        }
+    }
+
+    fn str_to_statement(s: &str) -> Statement {
+        let dialect = sqlparser::dialect::PostgreSqlDialect {};
+        let parser = sqlparser::parser::Parser::new(&dialect);
+        let mut parser = parser.try_with_sql(s).expect("SQL");
+        parser.parse_statement().expect("Not valid sql")
+    }
+}
+
+#[cfg(test)]
+mod test_str_to_pg {
+    use super::*;
+    use sqlx::postgres::PgPool;
+
+    #[sqlx::test]
+    fn test_add_column(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test ()"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ADD COLUMN id UUID"#];
+
+        assert_eq!(m, alter);
     }
 
     fn str_to_wrapped(s: &str) -> Wrapped {

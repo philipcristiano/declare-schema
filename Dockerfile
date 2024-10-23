@@ -2,7 +2,7 @@ FROM rust:1.82-bookworm as builder
 WORKDIR /usr/src/app
 
 COPY . .
-RUN cargo install --path .
+RUN SQLX_OFFLINE=true cargo install --path .
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y procps ca-certificates && rm -rf /var/lib/apt/lists/*

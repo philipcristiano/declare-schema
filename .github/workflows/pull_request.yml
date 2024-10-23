@@ -21,12 +21,15 @@ jobs:
       timeout: 25
 
   rust:
-    uses: "philipcristiano/workflows/.github/workflows/rust.yml@main"
+    uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
+    with:
+      db_name: et
+      db_user: et
+      db_password: et
 
   flake:
     uses: "philipcristiano/workflows/.github/workflows/nix.yml@main"
     with:
       flakes-from-devshell: true
       script: |
-        unset DATABASE_URL
-        cargo build
+        SQLX_OFFLINE=true cargo build

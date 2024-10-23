@@ -5,7 +5,7 @@ pub mod source_postgres;
 use altertable::Wrapped;
 use sqlx::PgPool;
 
-pub async fn migrate_from_string(src: &String, pool: &PgPool) -> anyhow::Result<()> {
+pub async fn migrate_from_string(src: &str, pool: &PgPool) -> anyhow::Result<()> {
     let src_state = crate::source_postgres::from_pool(&pool).await?;
     let end_statements = schema::app_schema(src)?;
     let end_state: anyhow::Result<Vec<Wrapped>> = end_statements
@@ -27,7 +27,7 @@ pub async fn migrate_from_string(src: &String, pool: &PgPool) -> anyhow::Result<
 }
 
 pub async fn generate_migrations_from_string(
-    src: &String,
+    src: &str,
     pool: &PgPool,
 ) -> anyhow::Result<Vec<String>> {
     let src_state = crate::source_postgres::from_pool(&pool).await?;

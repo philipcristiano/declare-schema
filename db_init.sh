@@ -1,4 +1,3 @@
-createdb folio
-createuser --superuser folio
+#initdb --username $PGUSER --pgdata $PGDATA
 
-psql -U folio folio -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+psql -U declare-schema declare-schema -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"

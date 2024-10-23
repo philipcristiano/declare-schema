@@ -32,7 +32,6 @@
             ];
             shellHook = ''
               export PGDATA=$PWD/pgdata
-              export PGDATA=$PWD/pgdata
               export PGDATABASE=declare-schema
               export PGUSER=declare-schema
             '';
