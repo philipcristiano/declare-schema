@@ -767,11 +767,11 @@ mod test_str_to_str {
     #[test]
     fn test_create_extension() {
         let start = vec![];
-        let target = vec![str_to_wrapped(r#"CREATE EXTENSION ltree;"#)];
+        let target = vec![str_to_wrapped(r#"CREATE EXTENSION ltree"#)];
 
         let r = from_to(start, target).expect("works");
 
-        let alter = vec![str_to_statement(r#"CREATE EXTENSION ltree;"#)];
+        let alter = vec![str_to_statement(r#"CREATE EXTENSION ltree"#)];
 
         assert_eq!(r, alter);
     }
@@ -817,6 +817,298 @@ mod test_str_to_pg {
             .expect("Migrate");
 
         let alter = vec![r#"ALTER TABLE test ADD COLUMN id UUID"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_remove_column(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test ()"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test DROP COLUMN id CASCADE"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_alter_column_not_null(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (id uuid NOT NULL)"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ALTER COLUMN id SET NOT NULL"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_alter_column_drop_not_null(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid NOT NULL)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ALTER COLUMN id DROP NOT NULL"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_alter_column_set_default(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (name varchar)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (name varchar DEFAULT 'foo')"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ALTER COLUMN name SET DEFAULT 'foo'"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_alter_column_set_new_default(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (name varchar DEFAULT 'foo')"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (name varchar DEFAULT 'bar')"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ALTER COLUMN name SET DEFAULT 'bar'"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_alter_column_drop_default(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (name varchar DEFAULT 'foo')"#, &pool)
+            .await
+            .expect("Setup");
+        let m =
+            crate::generate_migrations_from_string(r#"CREATE TABLE test (name varchar )"#, &pool)
+                .await
+                .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ALTER COLUMN name DROP DEFAULT"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_table(pool: PgPool) {
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"CREATE TABLE test (id UUID)"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_drop_table(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#""#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"DROP TABLE test CASCADE"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_primary_key_constraint(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (id uuid, PRIMARY KEY(id))"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ADD PRIMARY KEY (id)"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_foreign_key_constraint(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter =
+            vec![r#"ALTER TABLE test ADD CONSTRAINT fk_id FOREIGN KEY (id) REFERENCES items(id)"#];
+
+        assert_eq!(m, alter);
+    }
+    #[sqlx::test]
+    fn test_drop_foreign_key_constraint(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"
+                CREATE TABLE items (id uuid NOT NULL, PRIMARY KEY(id));
+                CREATE TABLE test (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"
+               CREATE TABLE items (id uuid NOT NULL, PRIMARY KEY(id));
+               CREATE TABLE test (id uuid)"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test DROP CONSTRAINT fk_id CASCADE"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_check_constraint(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (id uuid, CONSTRAINT check_id CHECK (id = 1))"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ADD CONSTRAINT check_id CHECK (id = 1)"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_drop_check_constraint(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 1))"#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id int)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test DROP CONSTRAINT check_id CASCADE"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_unique_constraint(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (id uuid, CONSTRAINT id_u UNIQUE (id))"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ADD CONSTRAINT id_u UNIQUE (id)"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_drop_unique_constraint(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"CREATE TABLE test (id uuid, CONSTRAINT id_u UNIQUE (id))"#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test DROP CONSTRAINT id_u CASCADE"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_index(pool: PgPool) {
+        let m =
+            crate::generate_migrations_from_string(r#"CREATE INDEX idx_id on test (id)"#, &pool)
+                .await
+                .expect("Migrate");
+
+        let alter = vec![r#"CREATE INDEX idx_id ON test(id)"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn _test_add_index_compare(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid NOT NULL)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ALTER COLUMN id DROP NOT NULL"#];
+
+        assert_eq!(m, alter);
+        let named_index = str_to_wrapped(r#"CREATE INDEX idx_id on test (id)"#);
+        let unnamed_index = str_to_wrapped(r#"CREATE INDEX on test (id)"#);
+
+        // One name and one missing name shouldn't match
+        let matched = Wrapped::name_and_type_equals(&named_index, &unnamed_index);
+        assert!(!matched);
+
+        // Unnamed items shouldn't match
+        let matched = Wrapped::name_and_type_equals(&unnamed_index, &unnamed_index);
+        assert!(!matched);
+    }
+
+    #[sqlx::test]
+    fn test_create_extension(pool: PgPool) {
+        let m = crate::generate_migrations_from_string(r#"CREATE EXTENSION ltree;"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"CREATE EXTENSION ltree"#];
 
         assert_eq!(m, alter);
     }
