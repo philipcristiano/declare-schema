@@ -15,11 +15,9 @@ Include database schema management in to Rust applications without the need for 
 
 Provide a CLI tool that can generate diffs of schemas and the required ALTER statements for review to detect schema drift.
 
-
 ### Easy development experience
 
 When embedded in an application or with a CLI tool keep an easy SQL -> DB flow that is clear to developers with an easy to modify schema.
-
 
 ## Current State
 
