@@ -1,10 +1,11 @@
+use crate::MigrationError;
 use sqlparser::ast::{AlterTableOperation, ObjectName, Statement, TableConstraint};
 use sqlparser::ast::{CreateIndex, CreateTable};
 use std::fmt::Display;
 
-pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> anyhow::Result<Vec<Statement>> {
+pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> Result<Vec<Statement>, MigrationError> {
     if f.name != t.name {
-        return Err(anyhow::anyhow!("Not the same table"));
+        return Err(MigrationError::TablesNotMatching(f.clone(), t.clone()));
     }
 
     let mut r = Vec::new();
@@ -16,7 +17,7 @@ pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> anyhow::Result<Vec<Sta
     Ok(r)
 }
 
-pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> anyhow::Result<Vec<Statement>> {
+pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>, MigrationError> {
     let mut r: Vec<Statement> = Vec::new();
     for wrapped_to in &tos {
         if let None = wrapped_to.name() {
@@ -91,7 +92,7 @@ fn compare_columns(
     table_name: &ObjectName,
     f: &Vec<sqlparser::ast::ColumnDef>,
     t: &Vec<sqlparser::ast::ColumnDef>,
-) -> anyhow::Result<Vec<Statement>> {
+) -> Result<Vec<Statement>, MigrationError> {
     let mut r = Vec::new();
     for f_column in f.clone() {
         eprintln!("find column {}", f_column);
@@ -142,7 +143,7 @@ fn compare_column(
     table_name: &ObjectName,
     f: &sqlparser::ast::ColumnDef,
     t: &sqlparser::ast::ColumnDef,
-) -> anyhow::Result<Vec<Statement>> {
+) -> Result<Vec<Statement>, MigrationError> {
     let mut r = Vec::new();
     for to_opt in &t.options {
         match &to_opt.option {
@@ -252,7 +253,7 @@ fn compare_constraints(
     table_name: &ObjectName,
     f: &Vec<sqlparser::ast::TableConstraint>,
     t: &Vec<sqlparser::ast::TableConstraint>,
-) -> anyhow::Result<Vec<Statement>> {
+) -> Result<Vec<Statement>, MigrationError> {
     let mut r = Vec::new();
 
     let maybe_f_pk = f
@@ -287,8 +288,12 @@ fn compare_constraints(
                         false
                     }
                 });
-                if let Some(_fk) = maybe_fk {
-                    eprintln!("Has fk already TODO: Check equal")
+                if let Some(fk) = maybe_fk {
+                    if fk != &t_constraint {
+                        return Err(MigrationError::CannotModifyTableConstraint(
+                            t_constraint.clone(),
+                        ));
+                    }
                 } else {
                     r.push(Statement::AlterTable {
                         name: table_name.clone(),
@@ -335,8 +340,12 @@ fn compare_constraints(
                         false
                     }
                 });
-                if let Some(_fk) = maybe_check {
-                    eprintln!("Has fk already TODO: Check equal")
+                if let Some(fk) = maybe_check {
+                    if fk != &t_constraint {
+                        return Err(MigrationError::CannotModifyTableConstraint(
+                            t_constraint.clone(),
+                        ));
+                    }
                 } else {
                     r.push(Statement::AlterTable {
                         name: table_name.clone(),
@@ -494,13 +503,13 @@ impl Wrapped {
         }
     }
 
-    pub fn try_from(s: Statement) -> anyhow::Result<Wrapped> {
+    pub fn try_from(s: Statement) -> anyhow::Result<Wrapped, MigrationError> {
         match s {
             Statement::CreateTable(ct) => Ok(Wrapped::CreateTable(ct)),
             Statement::CreateIndex(ci) => Ok(Wrapped::CreateIndex(ci)),
             Statement::CreateExtension { name, .. } => Ok(Wrapped::CreateExtension { name }),
 
-            _ => Err(anyhow::anyhow!("{s} Not a CreateTable")),
+            statement => Err(MigrationError::UnsupportedStatementType(statement)),
         }
     }
 }
@@ -974,6 +983,7 @@ mod test_str_to_pg {
 
         assert_eq!(m, alter);
     }
+
     #[sqlx::test]
     fn test_drop_foreign_key_constraint(pool: PgPool) {
         crate::migrate_from_string(
@@ -996,6 +1006,62 @@ mod test_str_to_pg {
         let alter = vec![r#"ALTER TABLE test DROP CONSTRAINT fk_id CASCADE"#];
 
         assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_same_foreign_key_constraint(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"
+                CREATE TABLE items (id uuid NOT NULL, PRIMARY KEY(id));
+                CREATE TABLE test (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"
+                CREATE TABLE items (id uuid NOT NULL, PRIMARY KEY(id));
+                CREATE TABLE test (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter: Vec<String> = vec![];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_modify_foreign_key_constraint(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"
+                CREATE TABLE items (
+                    id uuid NOT NULL,
+                    id2 uuid NOT NULL,
+                    PRIMARY KEY(id)
+                );
+                CREATE TABLE test (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let maybe_err = crate::generate_migrations_from_string(
+            r#"
+                CREATE TABLE items (
+                    id uuid NOT NULL,
+                    id2 uuid NOT NULL,
+                    PRIMARY KEY(id)
+                );
+                CREATE TABLE test (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id2))"#,
+            &pool,
+        )
+        .await;
+
+        match maybe_err {
+            Err(MigrationError::CannotModifyTableConstraint(_)) => (),
+            _ => panic!("Not the right error {maybe_err:?}"),
+        }
     }
 
     #[sqlx::test]
@@ -1030,6 +1096,46 @@ mod test_str_to_pg {
         let alter = vec![r#"ALTER TABLE test DROP CONSTRAINT check_id CASCADE"#];
 
         assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_same_check_constraint(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 1))"#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 1))"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter: Vec<&str> = vec![];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_modify_check_constraint(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 1))"#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let maybe_err = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 2))"#,
+            &pool,
+        )
+        .await;
+
+        match maybe_err {
+            Err(MigrationError::CannotModifyTableConstraint(_)) => (),
+            _ => panic!("Not the right error {maybe_err:?}"),
+        }
     }
 
     #[sqlx::test]

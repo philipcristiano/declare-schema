@@ -56,7 +56,7 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let to_file = read_file(to);
             let end_state = app_schema(&to_file)?;
-            let end_tables: anyhow::Result<Vec<Wrapped>> = end_state
+            let end_tables: Result<Vec<Wrapped>, declare_schema::MigrationError> = end_state
                 .clone()
                 .into_iter()
                 .map(|s| Wrapped::try_from(s))
