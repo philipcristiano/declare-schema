@@ -340,8 +340,12 @@ fn compare_constraints(
                         false
                     }
                 });
-                if let Some(_fk) = maybe_check {
-                    eprintln!("Has fk already TODO: Check equal")
+                if let Some(fk) = maybe_check {
+                    if fk != &t_constraint {
+                        return Err(MigrationError::CannotModifyTableConstraint(
+                            t_constraint.clone(),
+                        ));
+                    }
                 } else {
                     r.push(Statement::AlterTable {
                         name: table_name.clone(),
@@ -1092,6 +1096,46 @@ mod test_str_to_pg {
         let alter = vec![r#"ALTER TABLE test DROP CONSTRAINT check_id CASCADE"#];
 
         assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_same_check_constraint(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 1))"#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 1))"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter: Vec<&str> = vec![];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_modify_check_constraint(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 1))"#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let maybe_err = crate::generate_migrations_from_string(
+            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 2))"#,
+            &pool,
+        )
+        .await;
+
+        match maybe_err {
+            Err(MigrationError::CannotModifyTableConstraint(_)) => (),
+            _ => panic!("Not the right error {maybe_err:?}"),
+        }
     }
 
     #[sqlx::test]

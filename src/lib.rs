@@ -11,7 +11,7 @@ use thiserror::Error;
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum MigrationError {
-    #[error("The table constraint cannot be modified yet: `{0}`")]
+    #[error("The table constraint cannot be modified yet: `{0}`. Try adding a new constraing then dropping the old one")]
     CannotModifyTableConstraint(TableConstraint),
     #[error("These are not the same tables {0} {1}")]
     TablesNotMatching(CreateTable, CreateTable),
