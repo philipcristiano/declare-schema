@@ -3,12 +3,32 @@ pub mod schema;
 pub mod source_postgres;
 
 use altertable::Wrapped;
+use sqlparser::ast::CreateTable;
+use sqlparser::ast::TableConstraint;
 use sqlx::PgPool;
+use thiserror::Error;
 
-pub async fn migrate_from_string(src: &str, pool: &PgPool) -> anyhow::Result<()> {
+#[non_exhaustive]
+#[derive(Error, Debug)]
+pub enum MigrationError {
+    #[error("The table constraint cannot be modified yet: `{0}`")]
+    CannotModifyTableConstraint(TableConstraint),
+    #[error("These are not the same tables {0} {1}")]
+    TablesNotMatching(CreateTable, CreateTable),
+    #[error("Problems while connecting/executing SQL")]
+    ExecSqlError(#[from] sqlx::Error),
+    #[error("Problems while parsing SQL")]
+    SqlParseError(#[from] sqlparser::parser::ParserError),
+    #[error("Problems while parsing SQL type: {0}")]
+    SqlParseTypeError(String),
+    #[error("Unsupported statement {0}")]
+    UnsupportedStatementType(sqlparser::ast::Statement),
+}
+
+pub async fn migrate_from_string(src: &str, pool: &PgPool) -> Result<(), MigrationError> {
     let src_state = crate::source_postgres::from_pool(&pool).await?;
     let end_statements = schema::app_schema(src)?;
-    let end_state: anyhow::Result<Vec<Wrapped>> = end_statements
+    let end_state: Result<Vec<Wrapped>, MigrationError> = end_statements
         .clone()
         .into_iter()
         .map(|s| Wrapped::try_from(s))
@@ -29,10 +49,10 @@ pub async fn migrate_from_string(src: &str, pool: &PgPool) -> anyhow::Result<()>
 pub async fn generate_migrations_from_string(
     src: &str,
     pool: &PgPool,
-) -> anyhow::Result<Vec<String>> {
+) -> Result<Vec<String>, MigrationError> {
     let src_state = crate::source_postgres::from_pool(&pool).await?;
     let end_statements = schema::app_schema(src)?;
-    let end_state: anyhow::Result<Vec<Wrapped>> = end_statements
+    let end_state: Result<Vec<Wrapped>, MigrationError> = end_statements
         .clone()
         .into_iter()
         .map(|s| Wrapped::try_from(s))

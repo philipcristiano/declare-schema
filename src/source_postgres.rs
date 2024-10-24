@@ -1,4 +1,5 @@
 use crate::altertable::Wrapped;
+use crate::MigrationError;
 use sqlparser::ast::helpers::stmt_create_table::CreateTableBuilder;
 use sqlparser::ast::{ColumnDef, Ident, ObjectName};
 use std::collections::HashMap;
@@ -11,7 +12,7 @@ struct PGIndex {
     indexdef: Option<String>,
 }
 
-async fn pg_indexes(pool: &sqlx::PgPool, schema: String) -> anyhow::Result<Vec<Wrapped>> {
+async fn pg_indexes(pool: &sqlx::PgPool, schema: String) -> Result<Vec<Wrapped>, MigrationError> {
     let mut r = Vec::new();
     let db_indexes = sqlx::query_as!(
         PGIndex,
@@ -45,7 +46,7 @@ async fn table_constraints(
     c: &sqlx::PgPool,
     schema: String,
     table_name: String,
-) -> anyhow::Result<Vec<sqlparser::ast::TableConstraint>> {
+) -> Result<Vec<sqlparser::ast::TableConstraint>, MigrationError> {
     let mut r = Vec::new();
 
     let db_table_constraints = sqlx::query_as!(
@@ -80,7 +81,7 @@ struct PGExtension {
     extname: Option<String>,
 }
 
-async fn pg_extensions(c: &sqlx::PgPool) -> anyhow::Result<Vec<Wrapped>> {
+async fn pg_extensions(c: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationError> {
     let mut r = Vec::new();
 
     let db_extensions = sqlx::query_as!(
@@ -134,7 +135,7 @@ async fn table_columns(
     c: &sqlx::PgPool,
     schema: String,
     table_name: String,
-) -> anyhow::Result<Vec<ColumnDef>> {
+) -> Result<Vec<ColumnDef>, MigrationError> {
     let mut r = Vec::new();
 
     let db_table_columns = sqlx::query_as!(
@@ -194,7 +195,7 @@ async fn table_columns(
     Ok(r)
 }
 
-pub async fn from_pool(pool: &sqlx::PgPool) -> anyhow::Result<Vec<Wrapped>> {
+pub async fn from_pool(pool: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationError> {
     //let r = Vec::new();
     let mut table_map: HashMap<ObjectName, CreateTableBuilder> = HashMap::new();
     let schema = "public";
@@ -220,7 +221,7 @@ pub async fn from_pool(pool: &sqlx::PgPool) -> anyhow::Result<Vec<Wrapped>> {
         }
     }
 
-    let re: anyhow::Result<Vec<Wrapped>> = table_map
+    let re: Result<Vec<Wrapped>, MigrationError> = table_map
         .values()
         .map(|v| Wrapped::try_from(v.to_owned().build()))
         .collect();
@@ -233,51 +234,59 @@ pub async fn from_pool(pool: &sqlx::PgPool) -> anyhow::Result<Vec<Wrapped>> {
     Ok(re)
 }
 
-fn string_to_ident(os: Option<String>) -> anyhow::Result<Ident> {
+fn string_to_ident(os: Option<String>) -> Result<Ident, MigrationError> {
     if let Some(s) = os {
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let parser = sqlparser::parser::Parser::new(&dialect);
         let mut parser = parser.try_with_sql(&s)?;
         Ok(parser.parse_identifier(false)?)
     } else {
-        Err(anyhow::anyhow!("No string value"))
+        Err(MigrationError::SqlParseTypeError(
+            "No string value".to_string(),
+        ))
     }
 }
 
-fn string_to_object_name(os: Option<String>) -> anyhow::Result<ObjectName> {
+fn string_to_object_name(os: Option<String>) -> Result<ObjectName, MigrationError> {
     if let Some(s) = os {
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let parser = sqlparser::parser::Parser::new(&dialect);
         let mut parser = parser.try_with_sql(&s)?;
         Ok(parser.parse_object_name(false)?)
     } else {
-        Err(anyhow::anyhow!("No string value"))
+        Err(MigrationError::SqlParseTypeError(
+            "No string value".to_string(),
+        ))
     }
 }
 
-fn string_to_expr(os: Option<String>) -> anyhow::Result<sqlparser::ast::Expr> {
+fn string_to_expr(os: Option<String>) -> Result<sqlparser::ast::Expr, MigrationError> {
     if let Some(s) = os {
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let parser = sqlparser::parser::Parser::new(&dialect);
         let mut parser = parser.try_with_sql(&s)?;
         Ok(parser.parse_expr()?)
     } else {
-        Err(anyhow::anyhow!("No expr value"))
+        Err(MigrationError::SqlParseTypeError(
+            "No expr value".to_string(),
+        ))
     }
 }
 
-fn string_to_datatype(os: Option<String>) -> anyhow::Result<sqlparser::ast::DataType> {
+fn string_to_datatype(os: Option<String>) -> Result<sqlparser::ast::DataType, MigrationError> {
     if let Some(s) = os {
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let parser = sqlparser::parser::Parser::new(&dialect);
         let mut parser = parser.try_with_sql(&s)?;
         Ok(parser.parse_data_type()?)
     } else {
-        Err(anyhow::anyhow!("No string value"))
+        Err(MigrationError::SqlParseTypeError(
+            "No string value".to_string(),
+        ))
     }
 }
 
-fn string_to_create_index(os: Option<String>) -> anyhow::Result<sqlparser::ast::Statement> {
+fn string_to_create_index(os: Option<String>) -> Result<sqlparser::ast::Statement, MigrationError> {
     if let Some(s) = os {
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let parser = sqlparser::parser::Parser::new(&dialect);
@@ -285,13 +294,15 @@ fn string_to_create_index(os: Option<String>) -> anyhow::Result<sqlparser::ast::
 
         Ok(parser.parse_statement()?)
     } else {
-        Err(anyhow::anyhow!("No string value"))
+        Err(MigrationError::SqlParseTypeError(
+            "No string value".to_string(),
+        ))
     }
 }
 
 fn string_to_table_constraint(
     os: Option<String>,
-) -> anyhow::Result<sqlparser::ast::TableConstraint> {
+) -> Result<sqlparser::ast::TableConstraint, MigrationError> {
     if let Some(s) = os {
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let parser = sqlparser::parser::Parser::new(&dialect);
@@ -299,9 +310,13 @@ fn string_to_table_constraint(
         if let Ok(Some(tc)) = parser.parse_optional_table_constraint() {
             return Ok(tc);
         } else {
-            return Err(anyhow::anyhow!("Could not parse constraint"));
+            return Err(MigrationError::SqlParseTypeError(
+                "Could not parse constraint".to_string(),
+            ));
         }
     } else {
-        return Err(anyhow::anyhow!("No string value"));
+        return Err(MigrationError::SqlParseTypeError(
+            "No string value".to_string(),
+        ));
     }
 }
