@@ -24,3 +24,12 @@ When embedded in an application or with a CLI tool keep an easy SQL -> DB flow t
 ### Limitations
 
 `CREATE EXTENSION` - Can be created by name only. Cannot be `DROP`ed.
+
+`CONSTRAINT` - Cannot be changed, create a new one then drop the old one.
+
+`CREATE INDEX` - Indexes cannot be `ALTER`ed. To avoid errors in change detection/halting
+
+  * Specify the schema name for the table when creating the index
+  * Specify the `method` for `USING` that matches defaults:
+
+example: `CREATE INDEX idx_id on public.test USING BTREE (id DESC)`

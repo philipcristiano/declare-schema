@@ -21,7 +21,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
     let mut r: Vec<Statement> = Vec::new();
     for wrapped_to in &tos {
         if let None = wrapped_to.name() {
-            panic!("Object should have a name")
+            return Err(MigrationError::UnnamedObject(wrapped_to.clone()));
         }
         let matched_from = froms.iter().find(|f| f.name_and_type_equals(wrapped_to));
         match wrapped_to {
@@ -34,7 +34,13 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                 }
             }
             Wrapped::CreateIndex(to_index) => {
-                if let Some(Wrapped::CreateIndex(_from)) = matched_from {
+                if let Some(Wrapped::CreateIndex(from)) = matched_from {
+                    if from != to_index {
+                        return Err(MigrationError::CannotModifyIndex(
+                            from.clone(),
+                            to_index.clone(),
+                        ));
+                    }
                     eprintln!("TODO: Existing index matched, should check for changes");
                 } else {
                     r.push(Statement::CreateIndex(to_index.clone()));
@@ -443,6 +449,7 @@ fn compare_constraints(
     Ok(r)
 }
 
+#[derive(Clone, Debug)]
 pub enum Wrapped {
     CreateTable(CreateTable),
     CreateIndex(CreateIndex),
@@ -1185,27 +1192,84 @@ mod test_str_to_pg {
     }
 
     #[sqlx::test]
-    fn _test_add_index_compare(pool: PgPool) {
-        crate::migrate_from_string(r#"CREATE TABLE test (id uuid NOT NULL)"#, &pool)
-            .await
-            .expect("Setup");
-        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
-            .await
-            .expect("Migrate");
+    fn test_add_index_without_name(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"
+                CREATE TABLE test (id uuid NOT NULL);
+                CREATE INDEX idx_id on test (id);
 
-        let alter = vec![r#"ALTER TABLE test ALTER COLUMN id DROP NOT NULL"#];
+            "#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let maybe_err = crate::generate_migrations_from_string(
+            r#"
+                    CREATE TABLE test (id uuid);
+                    CREATE INDEX on public.test (id)
+            "#,
+            &pool,
+        )
+        .await;
+
+        match maybe_err {
+            Err(MigrationError::UnnamedObject(w)) => (),
+            _ => panic!("Not the right error {maybe_err:?}"),
+        }
+    }
+
+    #[sqlx::test]
+    fn test_unchanged_index(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"
+                CREATE TABLE test (id uuid);
+                CREATE INDEX idx_id on test (id);
+
+            "#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"
+                CREATE TABLE test (id uuid);
+                CREATE INDEX idx_id on public.test USING btree (id);
+            "#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter: Vec<String> = vec![];
 
         assert_eq!(m, alter);
-        let named_index = str_to_wrapped(r#"CREATE INDEX idx_id on test (id)"#);
-        let unnamed_index = str_to_wrapped(r#"CREATE INDEX on test (id)"#);
+    }
 
-        // One name and one missing name shouldn't match
-        let matched = Wrapped::name_and_type_equals(&named_index, &unnamed_index);
-        assert!(!matched);
+    #[sqlx::test]
+    fn test_changed_index(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"
+                CREATE TABLE test (id uuid);
+                CREATE INDEX idx_id on public.test USING BTREE (id ASC);
 
-        // Unnamed items shouldn't match
-        let matched = Wrapped::name_and_type_equals(&unnamed_index, &unnamed_index);
-        assert!(!matched);
+            "#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let maybe_err = crate::generate_migrations_from_string(
+            r#"
+                CREATE TABLE test (id uuid);
+                CREATE INDEX idx_id on public.test USING BTREE (id DESC);
+            "#,
+            &pool,
+        )
+        .await;
+
+        match maybe_err {
+            Err(MigrationError::CannotModifyIndex(_, _)) => (),
+            _ => panic!("Not the right error {maybe_err:?}"),
+        }
     }
 
     #[sqlx::test]
@@ -1225,14 +1289,6 @@ mod test_str_to_pg {
             Statement::CreateTable(ct) => Wrapped::CreateTable(ct),
             Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
             Statement::CreateExtension { name, .. } => Wrapped::CreateExtension { name },
-            _ => panic!("Expected a CREATE TABLE statement"),
-        }
-    }
-
-    fn str_to_create_table(s: &str) -> CreateTable {
-        let ast = str_to_statement(s);
-        match ast {
-            Statement::CreateTable(ct) => ct,
             _ => panic!("Expected a CREATE TABLE statement"),
         }
     }

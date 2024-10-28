@@ -11,7 +11,9 @@ use thiserror::Error;
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum MigrationError {
-    #[error("The table constraint cannot be modified yet: `{0}`. Try adding a new constraing then dropping the old one")]
+    #[error("The table index cannot be modified yet: `From: {0} To: {1}`. Try adding a new index then dropping the old one")]
+    CannotModifyIndex(sqlparser::ast::CreateIndex, sqlparser::ast::CreateIndex),
+    #[error("The table constraint cannot be modified yet: `{0}`. Try adding a new constraint then dropping the old one")]
     CannotModifyTableConstraint(TableConstraint),
     #[error("These are not the same tables {0} {1}")]
     TablesNotMatching(CreateTable, CreateTable),
@@ -23,6 +25,8 @@ pub enum MigrationError {
     SqlParseTypeError(String),
     #[error("Unsupported statement {0}")]
     UnsupportedStatementType(sqlparser::ast::Statement),
+    #[error("Unsupported statement {0}")]
+    UnnamedObject(altertable::Wrapped),
 }
 
 pub async fn migrate_from_string(src: &str, pool: &PgPool) -> Result<(), MigrationError> {
