@@ -13,8 +13,8 @@ use thiserror::Error;
 pub enum MigrationError {
     #[error("The table index cannot be modified yet: `From: {0} To: {1}`. Try adding a new index then dropping the old one")]
     CannotModifyIndex(sqlparser::ast::CreateIndex, sqlparser::ast::CreateIndex),
-    #[error("The table constraint cannot be modified yet: `{0}`. Try adding a new constraint then dropping the old one")]
-    CannotModifyTableConstraint(TableConstraint),
+    #[error("The table constraint cannot be modified yet: From: `{0}` To: {1}. Try adding a new constraint then dropping the old one")]
+    CannotModifyTableConstraint(TableConstraint, TableConstraint),
     #[error("These are not the same tables {0} {1}")]
     TablesNotMatching(CreateTable, CreateTable),
     #[error("Problems while connecting/executing SQL")]
