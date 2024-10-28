@@ -297,6 +297,7 @@ fn compare_constraints(
                 if let Some(fk) = maybe_fk {
                     if fk != &t_constraint {
                         return Err(MigrationError::CannotModifyTableConstraint(
+                            fk.clone(),
                             t_constraint.clone(),
                         ));
                     }
@@ -349,6 +350,7 @@ fn compare_constraints(
                 if let Some(fk) = maybe_check {
                     if fk != &t_constraint {
                         return Err(MigrationError::CannotModifyTableConstraint(
+                            fk.clone(),
                             t_constraint.clone(),
                         ));
                     }
@@ -1066,7 +1068,7 @@ mod test_str_to_pg {
         .await;
 
         match maybe_err {
-            Err(MigrationError::CannotModifyTableConstraint(_)) => (),
+            Err(MigrationError::CannotModifyTableConstraint(_, _)) => (),
             _ => panic!("Not the right error {maybe_err:?}"),
         }
     }
@@ -1140,7 +1142,7 @@ mod test_str_to_pg {
         .await;
 
         match maybe_err {
-            Err(MigrationError::CannotModifyTableConstraint(_)) => (),
+            Err(MigrationError::CannotModifyTableConstraint(_, _)) => (),
             _ => panic!("Not the right error {maybe_err:?}"),
         }
     }
