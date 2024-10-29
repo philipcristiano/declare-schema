@@ -1,5 +1,28 @@
+//! Diff SQL and a Postgres server to execute migrations
+//!
+//! Example
+//! ```ignore
+//! let pool = sqlx::PgPool::connect(env::var(key)?.as_str()).await?;
+//! let target_schema = include_str!("schema.sql");
+//! declare_schema::migrate_from_string(&target_schema, &pool).await?;
+//! ```
+//! Diff SQL and a Postgres server to generate migration statements
+//!
+//! Example
+//! ```ignore
+//! let pool = sqlx::PgPool::connect(env::var(key)?.as_str()).await?;
+//! let target_schema = include_str!("schema.sql");
+//! let steps = declare_schema::generate_migrations_from_string(&target_schema, &pool).await?;
+//! for step in steps {
+//!     println!("{}", step)
+//! }
+//! ```
+
+/// Diff'ing of ASTs and statement generation
 pub mod altertable;
+/// str parsing to generate sqlparser ASTs
 pub mod schema;
+/// Postgres Server reading to generate sqlparser ASTs
 pub mod source_postgres;
 
 use altertable::Wrapped;
@@ -8,6 +31,7 @@ use sqlparser::ast::TableConstraint;
 use sqlx::PgPool;
 use thiserror::Error;
 
+/// The common error type for migration errors
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum MigrationError {
@@ -29,6 +53,9 @@ pub enum MigrationError {
     UnnamedObject(altertable::Wrapped),
 }
 
+/// Diff a str with a DB and apply changes required to get the DB to match `str`
+///
+
 pub async fn migrate_from_string(src: &str, pool: &PgPool) -> Result<(), MigrationError> {
     let src_state = crate::source_postgres::from_pool(&pool).await?;
     let end_statements = schema::app_schema(src)?;
@@ -49,6 +76,8 @@ pub async fn migrate_from_string(src: &str, pool: &PgPool) -> Result<(), Migrati
     }
     Ok(())
 }
+
+/// Diff a str with a DB and return SQL changes required to get the DB to match `str`
 
 pub async fn generate_migrations_from_string(
     src: &str,
