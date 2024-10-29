@@ -1248,6 +1248,33 @@ mod test_str_to_pg {
     }
 
     #[sqlx::test]
+    fn test_unchanged_unique_index(pool: PgPool) {
+        crate::migrate_from_string(
+            r#"
+                CREATE TABLE test (id uuid, name text);
+                CREATE UNIQUE INDEX idx_id on test (id, name);
+
+            "#,
+            &pool,
+        )
+        .await
+        .expect("Setup");
+        let m = crate::generate_migrations_from_string(
+            r#"
+                CREATE TABLE test (id uuid, name text);
+                CREATE UNIQUE INDEX idx_id on public.test USING btree (id, name);
+            "#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter: Vec<String> = vec![];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
     fn test_changed_index(pool: PgPool) {
         crate::migrate_from_string(
             r#"
