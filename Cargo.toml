@@ -25,5 +25,5 @@ tracing = "0.1.40"
 url = "2.5.0"
 sqlx = { version = "0.8.0", features = ["runtime-tokio", "tls-rustls", "postgres"] }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
-thiserror = "1.0.59"
+thiserror = "2.0.0"
 sqlparser = { version = "0.52.0" }
