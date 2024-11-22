@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.10](https://github.com/philipcristiano/declare-schema/compare/v0.0.9...v0.0.10) - 2024-11-22
+
+### Fixed
+
+- *(deps)* update rust crate thiserror to v2
+- *(deps)* update rust crate sqlparser to 0.52.0 ([#110](https://github.com/philipcristiano/declare-schema/pull/110))
+
+### Other
+
+- *(deps)* lock file maintenance ([#113](https://github.com/philipcristiano/declare-schema/pull/113))
+- *(deps)* lock file maintenance ([#111](https://github.com/philipcristiano/declare-schema/pull/111))
+- *(deps)* lock file maintenance ([#108](https://github.com/philipcristiano/declare-schema/pull/108))
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- Start documentation
+
 ## [0.0.9](https://github.com/philipcristiano/declare-schema/compare/v0.0.8...v0.0.9) - 2024-10-28
 
 ### Fixed
