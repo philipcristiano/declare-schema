@@ -1,6 +1,6 @@
 use crate::MigrationError;
 use sqlparser::ast::{AlterTableOperation, ObjectName, Statement, TableConstraint};
-use sqlparser::ast::{CreateIndex, CreateTable};
+use sqlparser::ast::{CreateFunction, CreateIndex, CreateTable};
 use std::fmt::Display;
 
 pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> Result<Vec<Statement>, MigrationError> {
@@ -57,6 +57,15 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                     })
                 }
             }
+            Wrapped::CreateFunction(to_func) => {
+                if let Some(Wrapped::CreateFunction(from)) = matched_from {
+                    // TODO: Create from_to_function
+                    //let mut changes = from_to_function(&from, &to_func)?;
+                    //r.append(&mut changes);
+                } else {
+                    r.push(Statement::CreateFunction(to_func.clone()));
+                }
+            }
         }
     }
 
@@ -86,6 +95,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                         })
                     }
                 }
+                Wrapped::CreateFunction(cf) => (),
                 Wrapped::CreateExtension { .. } => (),
             }
         }
@@ -456,6 +466,7 @@ pub enum Wrapped {
     CreateTable(CreateTable),
     CreateIndex(CreateIndex),
     CreateExtension { name: sqlparser::ast::Ident },
+    CreateFunction(CreateFunction),
 }
 
 impl Display for Wrapped {
@@ -473,6 +484,7 @@ impl Display for Wrapped {
                 version: None,
             }
             .fmt(f),
+            Wrapped::CreateFunction(wcf) => wcf.fmt(f),
         }
     }
 }
@@ -500,6 +512,11 @@ impl Wrapped {
                     return name1 == name;
                 }
             }
+            Self::CreateFunction(cf) => {
+                if let Self::CreateFunction(other_func) = other {
+                    return cf.name == other_func.name;
+                }
+            }
         }
         return false;
     }
@@ -509,6 +526,7 @@ impl Wrapped {
             Wrapped::CreateTable(wct) => Some(wct.name.clone()),
             Wrapped::CreateIndex(wci) => wci.name.clone(),
             Wrapped::CreateExtension { name } => Some(ObjectName(vec![name.clone()])),
+            Wrapped::CreateFunction(wcf) => Some(wcf.name.clone()),
         }
     }
 
@@ -517,6 +535,7 @@ impl Wrapped {
             Statement::CreateTable(ct) => Ok(Wrapped::CreateTable(ct)),
             Statement::CreateIndex(ci) => Ok(Wrapped::CreateIndex(ci)),
             Statement::CreateExtension { name, .. } => Ok(Wrapped::CreateExtension { name }),
+            Statement::CreateFunction(ct) => Ok(Wrapped::CreateFunction(ct)),
 
             statement => Err(MigrationError::UnsupportedStatementType(statement)),
         }
@@ -1308,6 +1327,19 @@ mod test_str_to_pg {
             .expect("Migrate");
 
         let alter = vec![r#"CREATE EXTENSION ltree"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_create_function(pool: PgPool) {
+        let m = crate::generate_migrations_from_string(r#"CREATE FUNCTION hw() RETURNS text AS $$ 'hello world'::text; $$ LANGUAGE sql volatile;"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![
+            r#"CREATE FUNCTION hw RETURNS TEXT LANGUAGE sql VOLATILE AS $$ 'hello world'::text; $$"#,
+        ];
 
         assert_eq!(m, alter);
     }
