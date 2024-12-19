@@ -26,4 +26,4 @@ url = "2.5.0"
 sqlx = { version = "0.8.0", features = ["runtime-tokio", "tls-rustls", "postgres"] }
 uuid = { version = "1.8.0", features = ["v4", "serde"] }
 thiserror = "2.0.0"
-sqlparser = { version = "0.52.0" }
+sqlparser = { version = "0.53.0" }
