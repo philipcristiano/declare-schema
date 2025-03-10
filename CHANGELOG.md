@@ -6,6 +6,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.11](https://github.com/philipcristiano/declare-schema/compare/v0.0.10...v0.0.11) - 2025-03-10
+
+### Fixed
+
+- *(deps)* update rust crate sqlparser to 0.53.0 ([#128](https://github.com/philipcristiano/declare-schema/pull/128))
+
+### Other
+
+- *(deps)* lock file maintenance ([#155](https://github.com/philipcristiano/declare-schema/pull/155))
+- *(deps)* lock file maintenance ([#153](https://github.com/philipcristiano/declare-schema/pull/153))
+- *(deps)* lock file maintenance ([#151](https://github.com/philipcristiano/declare-schema/pull/151))
+- *(deps)* update rust docker tag to v1.85 ([#150](https://github.com/philipcristiano/declare-schema/pull/150))
+- *(deps)* lock file maintenance ([#148](https://github.com/philipcristiano/declare-schema/pull/148))
+- *(deps)* lock file maintenance ([#146](https://github.com/philipcristiano/declare-schema/pull/146))
+- *(deps)* lock file maintenance ([#144](https://github.com/philipcristiano/declare-schema/pull/144))
+- *(deps)* lock file maintenance ([#141](https://github.com/philipcristiano/declare-schema/pull/141))
+- *(deps)* lock file maintenance ([#139](https://github.com/philipcristiano/declare-schema/pull/139))
+- *(deps)* update rust docker tag to v1.84 ([#138](https://github.com/philipcristiano/declare-schema/pull/138))
+- *(deps)* lock file maintenance ([#136](https://github.com/philipcristiano/declare-schema/pull/136))
+- *(deps)* lock file maintenance ([#135](https://github.com/philipcristiano/declare-schema/pull/135))
+- *(deps)* lock file maintenance ([#133](https://github.com/philipcristiano/declare-schema/pull/133))
+- *(deps)* lock file maintenance ([#131](https://github.com/philipcristiano/declare-schema/pull/131))
+- *(deps)* lock file maintenance ([#129](https://github.com/philipcristiano/declare-schema/pull/129))
+- *(deps)* lock file maintenance ([#126](https://github.com/philipcristiano/declare-schema/pull/126))
+- *(deps)* lock file maintenance ([#124](https://github.com/philipcristiano/declare-schema/pull/124))
+- *(deps)* lock file maintenance ([#122](https://github.com/philipcristiano/declare-schema/pull/122))
+- *(deps)* update rust docker tag to v1.83 ([#121](https://github.com/philipcristiano/declare-schema/pull/121))
+- *(deps)* lock file maintenance ([#119](https://github.com/philipcristiano/declare-schema/pull/119))
+- *(deps)* lock file maintenance ([#115](https://github.com/philipcristiano/declare-schema/pull/115))
+
 ## [0.0.10](https://github.com/philipcristiano/declare-schema/compare/v0.0.9...v0.0.10) - 2024-11-22
 
 ### Fixed
