@@ -1,6 +1,6 @@
 use crate::MigrationError;
-use sqlparser::ast::{AlterTableOperation, ObjectName, Statement, TableConstraint};
-use sqlparser::ast::{CreateIndex, CreateTable};
+use sqlparser::ast::{AlterTableOperation, ObjectName, ObjectNamePart, Statement, TableConstraint};
+use sqlparser::ast::{CreateIndex, CreateTable, DropBehavior};
 use std::fmt::Display;
 
 pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> Result<Vec<Statement>, MigrationError> {
@@ -65,6 +65,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
             match from {
                 Wrapped::CreateTable(ct) => r.push(Statement::Drop {
                     object_type: sqlparser::ast::ObjectType::Table,
+                    table: None,
                     if_exists: false,
                     names: vec![ct.name.clone()],
                     cascade: true,
@@ -77,6 +78,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                     if let Some(name) = ci.name.clone() {
                         r.push(Statement::Drop {
                             object_type: sqlparser::ast::ObjectType::Index,
+                            table: None,
                             if_exists: false,
                             names: vec![name],
                             cascade: true,
@@ -112,10 +114,12 @@ fn compare_columns(
                 location: None,
                 only: false,
                 on_cluster: None,
+                iceberg: false,
                 operations: vec![AlterTableOperation::DropColumn {
                     column_name: f_column.name.clone(),
+                    has_column_keyword: true,
                     if_exists: false,
-                    cascade: true,
+                    drop_behavior: Some(DropBehavior::Cascade),
                 }],
             });
         }
@@ -134,6 +138,7 @@ fn compare_columns(
                 location: None,
                 only: false,
                 on_cluster: None,
+                iceberg: false,
                 operations: vec![AlterTableOperation::AddColumn {
                     column_keyword: true,
                     if_not_exists: false,
@@ -165,6 +170,7 @@ fn compare_column(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::SetNotNull,
@@ -184,6 +190,7 @@ fn compare_column(
                     location: None,
                     only: false,
                     on_cluster: None,
+                    iceberg: false,
                     operations: vec![AlterTableOperation::AlterColumn {
                         column_name: t.name.clone(),
                         op: sqlparser::ast::AlterColumnOperation::SetDefault {
@@ -222,6 +229,7 @@ fn compare_column(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::DropNotNull,
@@ -241,6 +249,7 @@ fn compare_column(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::DropDefault,
@@ -279,6 +288,7 @@ fn compare_constraints(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::AddConstraint(
                             t_constraint.to_owned(),
                         )],
@@ -308,6 +318,7 @@ fn compare_constraints(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::AddConstraint(
                             t_constraint.to_owned(),
                         )],
@@ -332,6 +343,7 @@ fn compare_constraints(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::AddConstraint(
                             t_constraint.to_owned(),
                         )],
@@ -361,6 +373,7 @@ fn compare_constraints(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::AddConstraint(
                             t_constraint.to_owned(),
                         )],
@@ -388,9 +401,10 @@ fn compare_constraints(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::DropConstraint {
                             if_exists: false,
-                            cascade: true,
+                            drop_behavior: Some(DropBehavior::Cascade),
                             name: name.clone().unwrap(),
                         }],
                     });
@@ -412,9 +426,10 @@ fn compare_constraints(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::DropConstraint {
                             if_exists: false,
-                            cascade: true,
+                            drop_behavior: Some(DropBehavior::Cascade),
                             name: name.clone().unwrap(),
                         }],
                     });
@@ -436,9 +451,10 @@ fn compare_constraints(
                         location: None,
                         only: false,
                         on_cluster: None,
+                        iceberg: false,
                         operations: vec![AlterTableOperation::DropConstraint {
                             if_exists: false,
-                            cascade: true,
+                            drop_behavior: Some(DropBehavior::Cascade),
                             name: name.clone().unwrap(),
                         }],
                     });
@@ -508,7 +524,9 @@ impl Wrapped {
         match self {
             Wrapped::CreateTable(wct) => Some(wct.name.clone()),
             Wrapped::CreateIndex(wci) => wci.name.clone(),
-            Wrapped::CreateExtension { name } => Some(ObjectName(vec![name.clone()])),
+            Wrapped::CreateExtension { name } => {
+                Some(ObjectName(vec![ObjectNamePart::Identifier(name.clone())]))
+            }
         }
     }
 

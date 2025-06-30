@@ -188,7 +188,6 @@ async fn table_columns(
         r.push(ColumnDef {
             name: string_to_ident(dbtc.column_name)?,
             data_type: string_to_datatype(dbtc.data_type)?,
-            collation: None,
             options: column_options,
         })
     }
@@ -239,7 +238,7 @@ fn string_to_ident(os: Option<String>) -> Result<Ident, MigrationError> {
         let dialect = sqlparser::dialect::PostgreSqlDialect {};
         let parser = sqlparser::parser::Parser::new(&dialect);
         let mut parser = parser.try_with_sql(&s)?;
-        Ok(parser.parse_identifier(false)?)
+        Ok(parser.parse_identifier()?)
     } else {
         Err(MigrationError::SqlParseTypeError(
             "No string value".to_string(),
