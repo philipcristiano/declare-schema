@@ -20,7 +20,6 @@
                 rust-bin.stable.latest.default
                 rust-analyzer
                 pkgs.postgresql_16
-                pkgs.openssl # native-tls is included in cargo, needs work to remove
                 pkgs.pkg-config
                 pkgs.foreman
                 pkgs.tailwindcss
