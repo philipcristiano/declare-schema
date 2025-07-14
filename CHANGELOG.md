@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.12](https://github.com/philipcristiano/declare-schema/compare/v0.0.11...v0.0.12) - 2025-07-14
+
+### Fixed
+
+- *(deps)* update rust crate toml to 0.9.0 ([#192](https://github.com/philipcristiano/declare-schema/pull/192))
+
+### Other
+
+- *(deps)* lock file maintenance ([#193](https://github.com/philipcristiano/declare-schema/pull/193))
+- *(deps)* lock file maintenance ([#189](https://github.com/philipcristiano/declare-schema/pull/189))
+
 ## [0.0.11](https://github.com/philipcristiano/declare-schema/compare/v0.0.10...v0.0.11) - 2025-06-30
 
 ### Fixed
