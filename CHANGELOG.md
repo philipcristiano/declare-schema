@@ -1,4 +1,29 @@
 # Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.0.12](https://github.com/philipcristiano/declare-schema/compare/v0.0.11...v0.0.12) - 2025-08-11
+
+### Fixed
+
+- *(deps)* update rust crate toml to 0.9.0 ([#192](https://github.com/philipcristiano/declare-schema/pull/192))
+
+### Other
+
+- *(deps)* lock file maintenance ([#204](https://github.com/philipcristiano/declare-schema/pull/204))
+- *(deps)* update rust docker tag to v1.89 ([#203](https://github.com/philipcristiano/declare-schema/pull/203))
+- *(deps)* lock file maintenance ([#201](https://github.com/philipcristiano/declare-schema/pull/201))
+- *(deps)* lock file maintenance ([#199](https://github.com/philipcristiano/declare-schema/pull/199))
+- *(deps)* lock file maintenance ([#198](https://github.com/philipcristiano/declare-schema/pull/198))
+- *(deps)* lock file maintenance ([#195](https://github.com/philipcristiano/declare-schema/pull/195))
+- *(deps)* lock file maintenance ([#193](https://github.com/philipcristiano/declare-schema/pull/193))
+- *(deps)* lock file maintenance ([#189](https://github.com/philipcristiano/declare-schema/pull/189))
+# Changelog
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
