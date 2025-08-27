@@ -116,7 +116,7 @@ fn compare_columns(
                 on_cluster: None,
                 iceberg: false,
                 operations: vec![AlterTableOperation::DropColumn {
-                    column_name: f_column.name.clone(),
+                    column_names: vec![f_column.name.clone()],
                     has_column_keyword: true,
                     if_exists: false,
                     drop_behavior: Some(DropBehavior::Cascade),
@@ -289,9 +289,10 @@ fn compare_constraints(
                         only: false,
                         on_cluster: None,
                         iceberg: false,
-                        operations: vec![AlterTableOperation::AddConstraint(
-                            t_constraint.to_owned(),
-                        )],
+                        operations: vec![AlterTableOperation::AddConstraint {
+                            constraint: t_constraint.to_owned(),
+                            not_valid: false,
+                        }],
                     });
                 }
             }
@@ -319,9 +320,10 @@ fn compare_constraints(
                         only: false,
                         on_cluster: None,
                         iceberg: false,
-                        operations: vec![AlterTableOperation::AddConstraint(
-                            t_constraint.to_owned(),
-                        )],
+                        operations: vec![AlterTableOperation::AddConstraint {
+                            constraint: t_constraint.to_owned(),
+                            not_valid: false,
+                        }],
                     });
                 }
             }
@@ -344,9 +346,10 @@ fn compare_constraints(
                         only: false,
                         on_cluster: None,
                         iceberg: false,
-                        operations: vec![AlterTableOperation::AddConstraint(
-                            t_constraint.to_owned(),
-                        )],
+                        operations: vec![AlterTableOperation::AddConstraint {
+                            constraint: t_constraint.to_owned(),
+                            not_valid: false,
+                        }],
                     });
                 }
             }
@@ -374,9 +377,10 @@ fn compare_constraints(
                         only: false,
                         on_cluster: None,
                         iceberg: false,
-                        operations: vec![AlterTableOperation::AddConstraint(
-                            t_constraint.to_owned(),
-                        )],
+                        operations: vec![AlterTableOperation::AddConstraint {
+                            constraint: t_constraint.to_owned(),
+                            not_valid: false,
+                        }],
                     });
                 }
             }
