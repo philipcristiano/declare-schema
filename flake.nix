@@ -24,10 +24,6 @@
                 pkgs.foreman
                 pkgs.tailwindcss
                 pkgs.atlas
-            ] ++
-              pkgs.lib.optionals pkgs.stdenv.isDarwin [
-                darwin.apple_sdk.frameworks.Security # Should only be for darwin
-                darwin.apple_sdk.frameworks.SystemConfiguration
             ];
             shellHook = ''
               export PGDATA=$PWD/pgdata
