@@ -6,6 +6,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.12](https://github.com/philipcristiano/declare-schema/compare/v0.0.11...v0.0.12) - 2025-10-24
+
+### Fixed
+
+- *(deps)* update rust crate sqlparser to 0.58.0 ([#197](https://github.com/philipcristiano/declare-schema/pull/197))
+- *(deps)* update rust crate toml to 0.9.0 ([#192](https://github.com/philipcristiano/declare-schema/pull/192))
+
+### Other
+
+- Update parsing, support for pg18
+- Update CI to run multiple postgres versions
+- *(deps)* update agenthunt/conventional-commit-checker-action action to v2.0.1 ([#227](https://github.com/philipcristiano/declare-schema/pull/227))
+- *(deps)* lock file maintenance ([#225](https://github.com/philipcristiano/declare-schema/pull/225))
+- *(deps)* lock file maintenance ([#223](https://github.com/philipcristiano/declare-schema/pull/223))
+- *(deps)* lock file maintenance ([#221](https://github.com/philipcristiano/declare-schema/pull/221))
+- *(deps)* lock file maintenance ([#219](https://github.com/philipcristiano/declare-schema/pull/219))
+- *(deps)* lock file maintenance ([#216](https://github.com/philipcristiano/declare-schema/pull/216))
+- *(deps)* update rust docker tag to v1.90 ([#215](https://github.com/philipcristiano/declare-schema/pull/215))
+- *(deps)* lock file maintenance ([#213](https://github.com/philipcristiano/declare-schema/pull/213))
+- *(deps)* lock file maintenance ([#211](https://github.com/philipcristiano/declare-schema/pull/211))
+- Remove darwin stub
+- *(deps)* lock file maintenance ([#208](https://github.com/philipcristiano/declare-schema/pull/208))
+- *(deps)* lock file maintenance ([#206](https://github.com/philipcristiano/declare-schema/pull/206))
+- *(deps)* lock file maintenance ([#204](https://github.com/philipcristiano/declare-schema/pull/204))
+- *(deps)* update rust docker tag to v1.89 ([#203](https://github.com/philipcristiano/declare-schema/pull/203))
+- *(deps)* lock file maintenance ([#201](https://github.com/philipcristiano/declare-schema/pull/201))
+- *(deps)* lock file maintenance ([#199](https://github.com/philipcristiano/declare-schema/pull/199))
+- *(deps)* lock file maintenance ([#198](https://github.com/philipcristiano/declare-schema/pull/198))
+- *(deps)* lock file maintenance ([#195](https://github.com/philipcristiano/declare-schema/pull/195))
+- *(deps)* lock file maintenance ([#193](https://github.com/philipcristiano/declare-schema/pull/193))
+- *(deps)* lock file maintenance ([#189](https://github.com/philipcristiano/declare-schema/pull/189))
+
 ## [0.0.11](https://github.com/philipcristiano/declare-schema/compare/v0.0.10...v0.0.11) - 2025-06-30
 
 ### Fixed
