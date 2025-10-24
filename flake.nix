@@ -19,6 +19,7 @@
             buildInputs = [
                 rust-bin.stable.latest.default
                 rust-analyzer
+                pkgs.postgresql_18
                 pkgs.postgresql_16
                 pkgs.pkg-config
                 pkgs.foreman

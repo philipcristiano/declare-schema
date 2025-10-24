@@ -121,6 +121,7 @@ fn compare_columns(
                     if_exists: false,
                     drop_behavior: Some(DropBehavior::Cascade),
                 }],
+                end_token: semicolon_token(),
             });
         }
     }
@@ -145,6 +146,7 @@ fn compare_columns(
                     column_def: t_column.to_owned(),
                     column_position: None,
                 }],
+                end_token: semicolon_token(),
             });
         }
     }
@@ -175,6 +177,7 @@ fn compare_column(
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::SetNotNull,
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -197,6 +200,7 @@ fn compare_column(
                             value: expr.to_owned(),
                         },
                     }],
+                    end_token: semicolon_token(),
                 };
                 match from_default {
                     // There is no default previously, alter the table
@@ -234,6 +238,7 @@ fn compare_column(
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::DropNotNull,
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -254,6 +259,7 @@ fn compare_column(
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::DropDefault,
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -293,6 +299,7 @@ fn compare_constraints(
                             constraint: t_constraint.to_owned(),
                             not_valid: false,
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -324,6 +331,7 @@ fn compare_constraints(
                             constraint: t_constraint.to_owned(),
                             not_valid: false,
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -350,6 +358,7 @@ fn compare_constraints(
                             constraint: t_constraint.to_owned(),
                             not_valid: false,
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -381,6 +390,7 @@ fn compare_constraints(
                             constraint: t_constraint.to_owned(),
                             not_valid: false,
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -411,6 +421,7 @@ fn compare_constraints(
                             drop_behavior: Some(DropBehavior::Cascade),
                             name: name.clone().unwrap(),
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -436,6 +447,7 @@ fn compare_constraints(
                             drop_behavior: Some(DropBehavior::Cascade),
                             name: name.clone().unwrap(),
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -461,6 +473,7 @@ fn compare_constraints(
                             drop_behavior: Some(DropBehavior::Cascade),
                             name: name.clone().unwrap(),
                         }],
+                        end_token: semicolon_token(),
                     });
                 }
             }
@@ -840,6 +853,15 @@ mod test_str_to_str {
         let mut parser = parser.try_with_sql(s).expect("SQL");
         parser.parse_statement().expect("Not valid sql")
     }
+}
+
+fn semicolon_token() -> sqlparser::ast::helpers::attached_token::AttachedToken {
+    use sqlparser::ast::helpers::attached_token::AttachedToken;
+    use sqlparser::tokenizer::{Location, Span, Token, TokenWithLocation};
+    AttachedToken(TokenWithLocation::new(
+        Token::SemiColon,
+        Span::new(Location::new(1, 10), Location::new(1, 11)),
+    ))
 }
 
 #[cfg(test)]

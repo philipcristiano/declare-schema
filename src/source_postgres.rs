@@ -65,13 +65,16 @@ async fn table_constraints(
 
     for dbtc in db_table_constraints {
         let s = format!(
-            "CONSTRAINT {} {}",
+            "CONSTRAINT {} {};",
             dbtc.conname.unwrap(),
-            dbtc.definition.unwrap()
+            dbtc.definition.clone().unwrap()
         );
 
-        let c = string_to_table_constraint(Some(s))?;
-        r.push(c)
+        // NOT NULL constraints are included but cannot be processed here
+        if !dbtc.definition.unwrap().starts_with("NOT NULL") {
+            let c = string_to_table_constraint(Some(s))?;
+            r.push(c)
+        }
     }
     Ok(r)
 }
@@ -176,13 +179,15 @@ async fn table_columns(
             }
         };
 
-        match string_to_expr(dbtc.column_default) {
-            Ok(expr) => column_options.push(sqlparser::ast::ColumnOptionDef {
-                name: None,
-                option: sqlparser::ast::ColumnOption::Default(expr),
-            }),
-            Err(e) => {
-                eprintln!("Column unknown default /error {e}")
+        if dbtc.column_default.is_some() {
+            match string_to_expr(dbtc.column_default) {
+                Ok(expr) => column_options.push(sqlparser::ast::ColumnOptionDef {
+                    name: None,
+                    option: sqlparser::ast::ColumnOption::Default(expr),
+                }),
+                Err(e) => {
+                    eprintln!("Column unknown default /error {e}")
+                }
             }
         }
         r.push(ColumnDef {

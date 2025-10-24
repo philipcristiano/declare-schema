@@ -1,7 +1,7 @@
 CREATE TABLE items (
   id   uuid,
   name text,
-  PRIMARY KEY(id),
+  PRIMARY KEY(id)
 );
 
 CREATE TABLE item_descriptions (
