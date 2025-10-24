@@ -20,6 +20,7 @@ jobs:
       DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 
   rust:
+    name: Rust With Postgres 18
     uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
     with:
       db_image: "postgres:18"
@@ -28,6 +29,7 @@ jobs:
       db_password: et
 
   rust_postgres_17:
+    name: Rust With Postgres 17
     uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
     with:
       db_name: et
@@ -35,6 +37,7 @@ jobs:
       db_password: et
 
   rust_postgres_16:
+    name: Rust With Postgres 16
     uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
     with:
       db_name: et
