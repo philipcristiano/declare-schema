@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.13](https://github.com/philipcristiano/declare-schema/compare/v0.0.12...v0.0.13) - 2025-10-28
+
+### Other
+
+- *(deps)* lock file maintenance
+- Merge branch 'main' into pg-update
+
 ## [0.0.12](https://github.com/philipcristiano/declare-schema/compare/v0.0.11...v0.0.12) - 2025-10-24
 
 ### Fixed
