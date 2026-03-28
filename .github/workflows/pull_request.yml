@@ -30,24 +30,6 @@ jobs:
       db_user: et
       db_password: et
 
-  rust_postgres_17:
-    runs-on: ubuntu-latest
-    name: Rust With Postgres 17
-    uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
-    with:
-      db_name: et
-      db_user: et
-      db_password: et
-
-  rust_postgres_16:
-    runs-on: ubuntu-latest
-    name: Rust With Postgres 16
-    uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
-    with:
-      db_name: et
-      db_user: et
-      db_password: et
-
   flake:
     runs-on: ubuntu-latest
     uses: "philipcristiano/workflows/.github/workflows/nix.yml@main"
