@@ -15,11 +15,6 @@ jobs:
         id: check-for-cc
         uses: agenthunt/conventional-commit-checker-action@v2.0.1
 
-  docker-build:
-    runs-on: nixos-latest
-    run: |
-        nix build '.#docker'
-
   rust:
     runs-on: ubuntu-latest
     name: Rust With Postgres 18
@@ -31,9 +26,7 @@ jobs:
       db_password: et
 
   flake:
-    runs-on: ubuntu-latest
-    uses: "philipcristiano/workflows/.github/workflows/nix.yml@main"
-    with:
-      flakes-from-devshell: true
-      script: |
-        SQLX_OFFLINE=true cargo build
+    runs-on: nixos-latest
+    run: |
+        nix build
+
