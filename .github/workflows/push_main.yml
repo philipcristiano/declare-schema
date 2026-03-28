@@ -31,12 +31,9 @@ jobs:
       db_password: et
 
   flake:
-    uses: "philipcristiano/workflows/.github/workflows/nix.yml@main"
-    runs-on: ubuntu-latest
-    with:
-      flakes-from-devshell: true
-      script: |
-        SQLX_OFFLINE=true cargo build
+    runs-on: nixos-latest
+    run: |
+        nix build
 
   rust_release:
     uses: "philipcristiano/workflows/.github/workflows/rust_release.yml@main"
