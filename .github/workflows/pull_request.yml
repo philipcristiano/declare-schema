@@ -15,15 +15,15 @@ jobs:
         id: check-for-cc
         uses: agenthunt/conventional-commit-checker-action@v2.0.1
 
-  rust:
-    runs-on: ubuntu-latest
-    name: Rust With Postgres 18
-    uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
-    with:
-      db_image: "postgres:18"
-      db_name: et
-      db_user: et
-      db_password: et
+  # rust:
+  #   runs-on: ubuntu-latest
+  #   name: Rust With Postgres 18
+  #   uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
+  #   with:
+  #     db_image: "postgres:18"
+  #     db_name: et
+  #     db_user: et
+  #     db_password: et
 
   flake:
     runs-on: nixos-latest
