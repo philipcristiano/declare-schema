@@ -1,7 +1,7 @@
 use crate::altertable::Wrapped;
 use crate::MigrationError;
 use sqlparser::ast::helpers::stmt_create_table::CreateTableBuilder;
-use sqlparser::ast::{ColumnDef, Ident, ObjectName};
+use sqlparser::ast::{ColumnDef, CreateExtension, Ident, ObjectName};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -101,13 +101,13 @@ async fn pg_extensions(c: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationError>
 
     for ext in db_extensions {
         let name_ident = string_to_ident(ext.extname)?;
-        let statement = sqlparser::ast::Statement::CreateExtension {
+        let statement = sqlparser::ast::Statement::CreateExtension(CreateExtension {
             name: name_ident,
             cascade: false,
             if_not_exists: false,
             schema: None,
             version: None,
-        };
+        });
         let wrapped = Wrapped::try_from(statement)?;
         r.push(wrapped);
     }
@@ -227,7 +227,7 @@ pub async fn from_pool(pool: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationErr
 
     let re: Result<Vec<Wrapped>, MigrationError> = table_map
         .values()
-        .map(|v| Wrapped::try_from(v.to_owned().build()))
+        .map(|v| Wrapped::try_from(sqlparser::ast::Statement::CreateTable(v.to_owned().build())))
         .collect();
     let mut re = re?;
 
