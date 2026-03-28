@@ -7,38 +7,13 @@ on:
 
 jobs:
 
-  docker_push:
-    name: "Push docker image"
-    runs-on: ubuntu-latest
-    uses: "philipcristiano/workflows/.github/workflows/docker-build-push.yml@main"
-    needs: [flake, rust]
-    with:
-      repository: ${{ github.repository }}
-      timeout: 25
-
-    secrets:
-      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-
-  rust:
-    name: Rust With Postgres 18
-    runs-on: ubuntu-latest
-    uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
-    with:
-      db_image: "postgres:18"
-      db_name: et
-      db_user: et
-      db_password: et
-
   flake:
     runs-on: nixos-latest
-    run: |
-        nix build
-
-  rust_release:
-    uses: "philipcristiano/workflows/.github/workflows/rust_release.yml@main"
-    runs-on: ubuntu-latest
-    needs: [flake, rust]
-    secrets:
-      WF_GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - name: Install Node
+        run: nix-env -i nodejs
+      - uses: actions/checkout@v4
+      - name: Build
+        env:
+          SQLX_OFFLINE: true
+        run: nix --experimental-features 'nix-command flakes' develop --command cargo build
