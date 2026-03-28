@@ -9,6 +9,7 @@ jobs:
 
   docker_push:
     name: "Push docker image"
+    runs-on: ubuntu-latest
     uses: "philipcristiano/workflows/.github/workflows/docker-build-push.yml@main"
     needs: [flake, rust]
     with:
@@ -21,6 +22,7 @@ jobs:
 
   rust:
     name: Rust With Postgres 18
+    runs-on: ubuntu-latest
     uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
     with:
       db_image: "postgres:18"
@@ -30,6 +32,7 @@ jobs:
 
   rust_postgres_17:
     name: Rust With Postgres 17
+    runs-on: ubuntu-latest
     uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
     with:
       db_name: et
@@ -38,6 +41,7 @@ jobs:
 
   rust_postgres_16:
     name: Rust With Postgres 16
+    runs-on: ubuntu-latest
     uses: "philipcristiano/workflows/.github/workflows/rust_with_postgres.yml@main"
     with:
       db_name: et
@@ -47,6 +51,7 @@ jobs:
 
   flake:
     uses: "philipcristiano/workflows/.github/workflows/nix.yml@main"
+    runs-on: ubuntu-latest
     with:
       flakes-from-devshell: true
       script: |
@@ -54,6 +59,7 @@ jobs:
 
   rust_release:
     uses: "philipcristiano/workflows/.github/workflows/rust_release.yml@main"
+    runs-on: ubuntu-latest
     needs: [flake, rust]
     secrets:
       WF_GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
