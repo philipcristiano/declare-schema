@@ -15,11 +15,10 @@ jobs:
         id: check-for-cc
         uses: agenthunt/conventional-commit-checker-action@v2.0.1
 
-  docker_build:
-    runs-on: ubuntu-latest
-    uses: "philipcristiano/workflows/.github/workflows/docker-build.yml@main"
-    with:
-      timeout: 25
+  docker-build:
+    runs-on: nixos-latest
+    run: |
+        nix build '.#docker'
 
   rust:
     runs-on: ubuntu-latest
