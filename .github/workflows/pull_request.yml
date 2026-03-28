@@ -15,4 +15,4 @@ jobs:
         run: nix-env -i nodejs
       - uses: actions/checkout@v4
       - name: Build
-        run: nix --experimental-features 'nix-command flakes' develop cargo build
+        run: nix --experimental-features 'nix-command flakes' develop --command cargo build
