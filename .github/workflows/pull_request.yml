@@ -15,4 +15,6 @@ jobs:
         run: nix-env -i nodejs
       - uses: actions/checkout@v4
       - name: Build
+        env:
+          SQLX_OFFLINE: true
         run: nix --experimental-features 'nix-command flakes' develop --command cargo build
