@@ -1,6 +1,7 @@
 use crate::MigrationError;
+use sqlparser::ast::table_constraints::{CheckConstraint, ForeignKeyConstraint, UniqueConstraint};
+use sqlparser::ast::{AlterTable, CreateExtension, CreateIndex, CreateTable, DropBehavior};
 use sqlparser::ast::{AlterTableOperation, ObjectName, ObjectNamePart, Statement, TableConstraint};
-use sqlparser::ast::{CreateIndex, CreateTable, DropBehavior};
 use std::fmt::Display;
 
 pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> Result<Vec<Statement>, MigrationError> {
@@ -48,13 +49,13 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
             }
             Wrapped::CreateExtension { name } => {
                 if let None = matched_from {
-                    r.push(Statement::CreateExtension {
+                    r.push(Statement::CreateExtension(CreateExtension {
                         name: name.to_owned(),
                         cascade: false,
                         if_not_exists: false,
                         schema: None,
                         version: None,
-                    })
+                    }))
                 }
             }
         }
@@ -108,13 +109,13 @@ fn compare_columns(
         if let Some(t_column) = maybe_t_column {
             eprintln!("matching column {}", t_column)
         } else {
-            r.push(Statement::AlterTable {
+            r.push(Statement::AlterTable(AlterTable {
                 name: table_name.clone(),
                 if_exists: false,
                 location: None,
                 only: false,
                 on_cluster: None,
-                iceberg: false,
+                table_type: None,
                 operations: vec![AlterTableOperation::DropColumn {
                     column_names: vec![f_column.name.clone()],
                     has_column_keyword: true,
@@ -122,7 +123,7 @@ fn compare_columns(
                     drop_behavior: Some(DropBehavior::Cascade),
                 }],
                 end_token: semicolon_token(),
-            });
+            }));
         }
     }
     for t_column in t {
@@ -133,13 +134,13 @@ fn compare_columns(
             let mut column_statements = compare_column(&table_name, &f_column, &t_column)?;
             r.append(&mut column_statements);
         } else {
-            r.push(Statement::AlterTable {
+            r.push(Statement::AlterTable(AlterTable {
                 name: table_name.clone(),
                 if_exists: false,
                 location: None,
                 only: false,
                 on_cluster: None,
-                iceberg: false,
+                table_type: None,
                 operations: vec![AlterTableOperation::AddColumn {
                     column_keyword: true,
                     if_not_exists: false,
@@ -147,7 +148,7 @@ fn compare_columns(
                     column_position: None,
                 }],
                 end_token: semicolon_token(),
-            });
+            }));
         }
     }
     Ok(r)
@@ -166,19 +167,19 @@ fn compare_column(
                     .iter()
                     .find(|f_opt| matches!(f_opt.option, sqlparser::ast::ColumnOption::NotNull));
                 if let None = from_not_null {
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::SetNotNull,
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
             sqlparser::ast::ColumnOption::Default(expr) => {
@@ -187,13 +188,13 @@ fn compare_column(
                     .iter()
                     .find(|f_opt| matches!(f_opt.option, sqlparser::ast::ColumnOption::Default(_)));
                 // Create the alter statement but dont push it yet
-                let alter = Statement::AlterTable {
+                let alter = Statement::AlterTable(AlterTable {
                     name: table_name.clone(),
                     if_exists: false,
                     location: None,
                     only: false,
                     on_cluster: None,
-                    iceberg: false,
+                    table_type: None,
                     operations: vec![AlterTableOperation::AlterColumn {
                         column_name: t.name.clone(),
                         op: sqlparser::ast::AlterColumnOperation::SetDefault {
@@ -201,7 +202,7 @@ fn compare_column(
                         },
                     }],
                     end_token: semicolon_token(),
-                };
+                });
                 match from_default {
                     // There is no default previously, alter the table
                     None => r.push(alter),
@@ -227,19 +228,19 @@ fn compare_column(
                     .iter()
                     .find(|to_opt| matches!(to_opt.option, sqlparser::ast::ColumnOption::NotNull));
                 if let None = to_not_null {
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::DropNotNull,
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
 
@@ -248,19 +249,19 @@ fn compare_column(
                     matches!(to_opt.option, sqlparser::ast::ColumnOption::Default(_))
                 });
                 if let None = to_default {
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::AlterColumn {
                             column_name: t.name.clone(),
                             op: sqlparser::ast::AlterColumnOperation::DropDefault,
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
 
@@ -288,25 +289,25 @@ fn compare_constraints(
                 } else {
                     eprintln!("Needs pk");
 
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::AddConstraint {
                             constraint: t_constraint.to_owned(),
                             not_valid: false,
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
-            TableConstraint::ForeignKey { name, .. } => {
+            TableConstraint::ForeignKey(ForeignKeyConstraint { name, .. }) => {
                 let to_name = name;
                 let maybe_fk = f.iter().find(|fc| {
-                    if let TableConstraint::ForeignKey { name, .. } = fc {
+                    if let TableConstraint::ForeignKey(ForeignKeyConstraint { name, .. }) = fc {
                         to_name == name
                     } else {
                         false
@@ -320,25 +321,25 @@ fn compare_constraints(
                         ));
                     }
                 } else {
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::AddConstraint {
                             constraint: t_constraint.to_owned(),
                             not_valid: false,
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
-            TableConstraint::Unique { name, .. } => {
+            TableConstraint::Unique(UniqueConstraint { name, .. }) => {
                 let to_name = name;
                 let maybe_uniq = f.iter().find(|uniq| {
-                    if let TableConstraint::Unique { name, .. } = uniq {
+                    if let TableConstraint::Unique(UniqueConstraint { name, .. }) = uniq {
                         to_name == name
                     } else {
                         false
@@ -347,25 +348,25 @@ fn compare_constraints(
                 if let Some(_uniq) = maybe_uniq {
                     eprintln!("Has Unique already TODO: Check equal")
                 } else {
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::AddConstraint {
                             constraint: t_constraint.to_owned(),
                             not_valid: false,
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
-            TableConstraint::Check { name, .. } => {
+            TableConstraint::Check(CheckConstraint { name, .. }) => {
                 let to_name = name;
                 let maybe_check = f.iter().find(|check| {
-                    if let TableConstraint::Check { name, .. } = check {
+                    if let TableConstraint::Check(CheckConstraint { name, .. }) = check {
                         to_name == name
                     } else {
                         false
@@ -379,19 +380,19 @@ fn compare_constraints(
                         ));
                     }
                 } else {
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::AddConstraint {
                             constraint: t_constraint.to_owned(),
                             not_valid: false,
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
             x => eprintln!("Constraints not supported {:?}", x),
@@ -399,82 +400,82 @@ fn compare_constraints(
     }
     for f_constraint in f {
         match &f_constraint {
-            TableConstraint::ForeignKey { name, .. } => {
+            TableConstraint::ForeignKey(ForeignKeyConstraint { name, .. }) => {
                 let from_name = name;
                 let maybe_fk = &t.iter().find(|tc| {
-                    if let TableConstraint::ForeignKey { name, .. } = tc {
+                    if let TableConstraint::ForeignKey(ForeignKeyConstraint { name, .. }) = tc {
                         from_name == name
                     } else {
                         false
                     }
                 });
                 if let None = maybe_fk {
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::DropConstraint {
                             if_exists: false,
                             drop_behavior: Some(DropBehavior::Cascade),
                             name: name.clone().unwrap(),
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
-            TableConstraint::Unique { name, .. } => {
+            TableConstraint::Unique(UniqueConstraint { name, .. }) => {
                 let from_name = name;
                 let maybe_uniq = &t.iter().find(|uniq| {
-                    if let TableConstraint::Unique { name, .. } = uniq {
+                    if let TableConstraint::Unique(UniqueConstraint { name, .. }) = uniq {
                         from_name == name
                     } else {
                         false
                     }
                 });
                 if let None = maybe_uniq {
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::DropConstraint {
                             if_exists: false,
                             drop_behavior: Some(DropBehavior::Cascade),
                             name: name.clone().unwrap(),
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
-            TableConstraint::Check { name, .. } => {
+            TableConstraint::Check(CheckConstraint { name, .. }) => {
                 let from_name = name;
                 let maybe_check = &t.iter().find(|check| {
-                    if let TableConstraint::Check { name, .. } = check {
+                    if let TableConstraint::Check(CheckConstraint { name, .. }) = check {
                         from_name == name
                     } else {
                         false
                     }
                 });
                 if let None = maybe_check {
-                    r.push(Statement::AlterTable {
+                    r.push(Statement::AlterTable(AlterTable {
                         name: table_name.clone(),
                         if_exists: false,
                         location: None,
                         only: false,
                         on_cluster: None,
-                        iceberg: false,
+                        table_type: None,
                         operations: vec![AlterTableOperation::DropConstraint {
                             if_exists: false,
                             drop_behavior: Some(DropBehavior::Cascade),
                             name: name.clone().unwrap(),
                         }],
                         end_token: semicolon_token(),
-                    });
+                    }));
                 }
             }
             TableConstraint::PrimaryKey { .. } => {}
@@ -498,14 +499,16 @@ impl Display for Wrapped {
             Wrapped::CreateIndex(wci) => {
                 sqlparser::ast::Statement::CreateIndex(wci.to_owned()).fmt(f)
             }
-            Wrapped::CreateExtension { name } => sqlparser::ast::Statement::CreateExtension {
-                name: name.to_owned(),
-                if_not_exists: false,
-                cascade: false,
-                schema: None,
-                version: None,
+            Wrapped::CreateExtension { name } => {
+                sqlparser::ast::Statement::CreateExtension(CreateExtension {
+                    name: name.to_owned(),
+                    if_not_exists: false,
+                    cascade: false,
+                    schema: None,
+                    version: None,
+                })
+                .fmt(f)
             }
-            .fmt(f),
         }
     }
 }
@@ -551,7 +554,9 @@ impl Wrapped {
         match s {
             Statement::CreateTable(ct) => Ok(Wrapped::CreateTable(ct)),
             Statement::CreateIndex(ci) => Ok(Wrapped::CreateIndex(ci)),
-            Statement::CreateExtension { name, .. } => Ok(Wrapped::CreateExtension { name }),
+            Statement::CreateExtension(CreateExtension { name, .. }) => {
+                Ok(Wrapped::CreateExtension { name })
+            }
 
             statement => Err(MigrationError::UnsupportedStatementType(statement)),
         }
@@ -834,7 +839,9 @@ mod test_str_to_str {
         match ast {
             Statement::CreateTable(ct) => Wrapped::CreateTable(ct),
             Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
-            Statement::CreateExtension { name, .. } => Wrapped::CreateExtension { name },
+            Statement::CreateExtension(CreateExtension { name, .. }) => {
+                Wrapped::CreateExtension { name }
+            }
             _ => panic!("Expected a CREATE TABLE statement"),
         }
     }
@@ -1259,7 +1266,7 @@ mod test_str_to_pg {
         .await;
 
         match maybe_err {
-            Err(MigrationError::UnnamedObject(w)) => (),
+            Err(MigrationError::UnnamedObject(_w)) => (),
             _ => panic!("Not the right error {maybe_err:?}"),
         }
     }
@@ -1361,7 +1368,9 @@ mod test_str_to_pg {
         match ast {
             Statement::CreateTable(ct) => Wrapped::CreateTable(ct),
             Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
-            Statement::CreateExtension { name, .. } => Wrapped::CreateExtension { name },
+            Statement::CreateExtension(CreateExtension { name, .. }) => {
+                Wrapped::CreateExtension { name }
+            }
             _ => panic!("Expected a CREATE TABLE statement"),
         }
     }
