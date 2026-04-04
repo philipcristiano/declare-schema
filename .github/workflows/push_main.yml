@@ -37,7 +37,7 @@ jobs:
   flake:
     runs-on: nixos-runner
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build
         env:
           SQLX_OFFLINE: true
