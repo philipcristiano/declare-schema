@@ -42,3 +42,47 @@ jobs:
         env:
           SQLX_OFFLINE: true
         run: nix develop --command cargo build
+
+  postgres_18:
+    services:
+      pgsql:
+        image: postgres:18
+        env:
+          POSTGRES_DB: declare-schema
+          POSTGRES_PASSWORD: declare-schema
+          POSTGRES_USER: declare-schema
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    runs-on: nixos-runner
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build
+        env:
+          DATABASE_URL: postgres://declare-schema:declare-schema@pgsql/declare-schema?sslmode=disable
+        run: nix develop --command cargo test
+
+  postgres_17:
+    services:
+      pgsql:
+        image: postgres:17
+        env:
+          POSTGRES_DB: declare-schema
+          POSTGRES_PASSWORD: declare-schema
+          POSTGRES_USER: declare-schema
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    runs-on: nixos-runner
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build
+        env:
+          DATABASE_URL: postgres://declare-schema:declare-schema@pgsql/declare-schema?sslmode=disable
+        run: nix develop --command cargo test
