@@ -6,6 +6,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.13](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.12...v0.0.13) - 2026-04-05
+
+### Fixed
+
+- *(deps)* update rust crate sqlparser to 0.61.0
+- *(deps)* update rust crate toml to v1
+- Update ci workflows to match rust_service_conventions
+- fix command
+
+### Other
+
+- test with postgres 17/18
+- *(deps)* update actions/checkout action to v6
+- *(deps)* update rust docker tag to v1.94
+- Merge pull request 'chore(deps): update actions/checkout action to v6' ([#11](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/pulls/11)) from renovate/actions-checkout-6.x into main
+- Remove unneeded things
+- Only build with nix on main
+- Set environment to run sqlx offline
+- enable flakes
+- Needed for checkout
+- Only run flake
+- Only build on nixos-latest  for CI
+- Don't try to build docker
+- fewer builds for now
+- Build docker with nix
+- More runs-on
+- Set runs-on
+- *(deps)* lock file maintenance
+- Merge branch 'main' into pg-update
+
 ## [0.0.12](https://github.com/philipcristiano/declare-schema/compare/v0.0.11...v0.0.12) - 2025-10-24
 
 ### Fixed
