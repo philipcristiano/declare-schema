@@ -49,6 +49,7 @@ async fn table_constraints(
 ) -> Result<Vec<sqlparser::ast::TableConstraint>, MigrationError> {
     let mut r = Vec::new();
 
+    let name = format!("{schema}.{table_name}");
     let db_table_constraints = sqlx::query_as!(
         PGTableConstraint,
         "
@@ -58,7 +59,7 @@ async fn table_constraints(
         FROM pg_catalog.pg_constraint r
         WHERE r.conrelid = $1::regclass
         ",
-        table_name as _
+        name as _
     )
     .fetch_all(c)
     .await?;
@@ -200,9 +201,18 @@ async fn table_columns(
 }
 
 pub async fn from_pool(pool: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationError> {
-    //let r = Vec::new();
-    let mut table_map: HashMap<ObjectName, CreateTableBuilder> = HashMap::new();
-    let schema = "public";
+    let db_tables = sqlx::query_as!(
+        PGTable,
+        "select table_schema, table_name from information_schema.tables where table_schema = current_schema()",
+    )
+    .fetch_all(pool)
+    .await?;
+    tables_to_wrapped(pool, db_tables).await
+}
+pub async fn from_pool_schema(
+    pool: &sqlx::PgPool,
+    schema: &str,
+) -> Result<Vec<Wrapped>, MigrationError> {
     let db_tables = sqlx::query_as!(
         PGTable,
         "select table_schema, table_name from information_schema.tables where table_schema = $1",
@@ -210,8 +220,21 @@ pub async fn from_pool(pool: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationErr
     )
     .fetch_all(pool)
     .await?;
+    tables_to_wrapped(pool, db_tables).await
+}
 
+async fn tables_to_wrapped(
+    pool: &sqlx::PgPool,
+    db_tables: Vec<PGTable>,
+) -> Result<Vec<Wrapped>, MigrationError> {
+    let mut schema = "str".to_string();
+
+    let mut table_map: HashMap<ObjectName, CreateTableBuilder> = HashMap::new();
     for db_table in db_tables {
+        schema = db_table.table_schema.expect("Table needs a schema");
+        #[cfg(test)]
+        println!("table {:?}.{:?}", schema, db_table.table_name);
+
         if let Some(table_name) = db_table.table_name {
             let object_name = string_to_object_name(Some(table_name.clone()))?;
             let columns = table_columns(pool, schema.to_string(), table_name.clone()).await?;

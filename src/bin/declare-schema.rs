@@ -41,7 +41,8 @@ async fn main() -> anyhow::Result<()> {
     let pg_connect_opts = sqlx::postgres::PgConnectOptions::new();
     let pool = sqlx::PgPool::connect_with(pg_connect_opts).await?;
 
-    let start_from_db = declare_schema::source_postgres::from_pool(&pool).await?;
+    let start_from_db =
+        declare_schema::source_postgres::from_pool(&pool).await?;
 
     match &args.command {
         Commands::Dump => {
