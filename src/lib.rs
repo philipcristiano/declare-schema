@@ -53,11 +53,12 @@ pub enum MigrationError {
     UnnamedObject(altertable::Wrapped),
 }
 
-/// Diff a str with a DB and apply changes required to get the DB to match `str`
-///
-
-pub async fn migrate_from_string(src: &str, pool: &PgPool) -> Result<(), MigrationError> {
-    let src_state = crate::source_postgres::from_pool(&pool).await?;
+pub async fn migrate_schema_from_string(
+    schema: &str,
+    src: &str,
+    pool: &PgPool,
+) -> Result<(), MigrationError> {
+    let src_state = crate::source_postgres::from_pool_schema(&pool, &schema).await?;
     let end_statements = schema::app_schema(src)?;
     let end_state: Result<Vec<Wrapped>, MigrationError> = end_statements
         .clone()
@@ -72,9 +73,18 @@ pub async fn migrate_from_string(src: &str, pool: &PgPool) -> Result<(), Migrati
         .execute(&mut *conn)
         .await?;
     for s in steps {
+        #[cfg(test)]
+        println!("{:?}", s.to_string());
+
         sqlx::query(&s.to_string()).execute(&mut *conn).await?;
     }
     Ok(())
+}
+/// Diff a str with a DB and apply changes required to get the DB to match `str`
+///
+
+pub async fn migrate_from_string(src: &str, pool: &PgPool) -> Result<(), MigrationError> {
+    migrate_schema_from_string("public", &src, &pool).await
 }
 
 /// Diff a str with a DB and return SQL changes required to get the DB to match `str`
@@ -83,7 +93,14 @@ pub async fn generate_migrations_from_string(
     src: &str,
     pool: &PgPool,
 ) -> Result<Vec<String>, MigrationError> {
-    let src_state = crate::source_postgres::from_pool(&pool).await?;
+    generate_migrations_from_string_for_schema("public", &src, &pool).await
+}
+pub async fn generate_migrations_from_string_for_schema(
+    schema: &str,
+    src: &str,
+    pool: &PgPool,
+) -> Result<Vec<String>, MigrationError> {
+    let src_state = crate::source_postgres::from_pool_schema(&pool, &schema).await?;
     let end_statements = schema::app_schema(src)?;
     let end_state: Result<Vec<Wrapped>, MigrationError> = end_statements
         .clone()

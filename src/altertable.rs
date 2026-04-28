@@ -58,6 +58,25 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                     }))
                 }
             }
+            Wrapped::CreateSchema {
+                schema_name,
+                if_not_exists,
+                with,
+                options,
+                default_collate_spec,
+                clone,
+            } => {
+                if let None = matched_from {
+                    r.push(Statement::CreateSchema {
+                        schema_name: schema_name.to_owned(),
+                        if_not_exists: if_not_exists.to_owned(),
+                        with: with.to_owned(),
+                        options: options.to_owned(),
+                        default_collate_spec: default_collate_spec.to_owned(),
+                        clone: clone.to_owned(),
+                    })
+                }
+            }
         }
     }
 
@@ -89,7 +108,10 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                         })
                     }
                 }
+                // Extensions won't be removed
                 Wrapped::CreateExtension { .. } => (),
+                // Schemas wont be dropped
+                Wrapped::CreateSchema { .. } => (),
             }
         }
     }
@@ -489,7 +511,17 @@ fn compare_constraints(
 pub enum Wrapped {
     CreateTable(CreateTable),
     CreateIndex(CreateIndex),
-    CreateExtension { name: sqlparser::ast::Ident },
+    CreateExtension {
+        name: sqlparser::ast::Ident,
+    },
+    CreateSchema {
+        schema_name: sqlparser::ast::SchemaName,
+        if_not_exists: bool,
+        with: Option<Vec<sqlparser::ast::SqlOption>>,
+        options: Option<Vec<sqlparser::ast::SqlOption>>,
+        default_collate_spec: Option<sqlparser::ast::Expr>,
+        clone: Option<ObjectName>,
+    },
 }
 
 impl Display for Wrapped {
@@ -509,6 +541,22 @@ impl Display for Wrapped {
                 })
                 .fmt(f)
             }
+            Wrapped::CreateSchema {
+                schema_name,
+                if_not_exists,
+                with,
+                options,
+                default_collate_spec,
+                clone,
+            } => sqlparser::ast::Statement::CreateSchema {
+                schema_name: schema_name.to_owned(),
+                if_not_exists: if_not_exists.to_owned(),
+                with: with.to_owned(),
+                options: options.to_owned(),
+                default_collate_spec: default_collate_spec.to_owned(),
+                clone: clone.to_owned(),
+            }
+            .fmt(f),
         }
     }
 }
@@ -536,6 +584,12 @@ impl Wrapped {
                     return name1 == name;
                 }
             }
+            Self::CreateSchema { schema_name, .. } => {
+                let name1 = schema_name;
+                if let Self::CreateSchema { schema_name, .. } = other {
+                    return name1 == schema_name;
+                }
+            }
         }
         return false;
     }
@@ -547,6 +601,10 @@ impl Wrapped {
             Wrapped::CreateExtension { name } => {
                 Some(ObjectName(vec![ObjectNamePart::Identifier(name.clone())]))
             }
+            Wrapped::CreateSchema { schema_name, .. } => match schema_name {
+                sqlparser::ast::SchemaName::Simple(obj_name) => Some(obj_name.clone().into()),
+                _ => None,
+            },
         }
     }
 
@@ -557,6 +615,21 @@ impl Wrapped {
             Statement::CreateExtension(CreateExtension { name, .. }) => {
                 Ok(Wrapped::CreateExtension { name })
             }
+            Statement::CreateSchema {
+                schema_name,
+                if_not_exists,
+                with,
+                options,
+                default_collate_spec,
+                clone,
+            } => Ok(Wrapped::CreateSchema {
+                schema_name,
+                if_not_exists,
+                with,
+                options,
+                default_collate_spec,
+                clone,
+            }),
 
             statement => Err(MigrationError::UnsupportedStatementType(statement)),
         }
@@ -887,6 +960,57 @@ mod test_str_to_pg {
 
         let alter = vec![r#"ALTER TABLE test ADD COLUMN id UUID"#];
 
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_column_to_separate_schemas(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE SCHEMA schema1 "#, &pool)
+            .await
+            .expect("Setup schema");
+        crate::migrate_from_string(r#"CREATE SCHEMA schema2 "#, &pool)
+            .await
+            .expect("Setup schema");
+        crate::migrate_from_string(r#"CREATE TABLE schema1.test ()"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE schema2.test ()"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"CREATE TABLE schema2.test ()"#];
+        assert_eq!(m, alter);
+    }
+    #[sqlx::test]
+    fn test_add_column_to_default_schemas(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE public.test ()"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"ALTER TABLE test ADD COLUMN id UUID"#];
+
+        assert_eq!(m, alter);
+    }
+    #[sqlx::test]
+    fn test_no_add_column_to_named_schema_table(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE SCHEMA schema1 "#, &pool)
+            .await
+            .expect("Setup schema");
+        crate::migrate_from_string(r#"CREATE TABLE schema1.test ()"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string_for_schema(
+            "schema1",
+            r#"CREATE TABLE test ()"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter: Vec<String> = vec![];
         assert_eq!(m, alter);
     }
 
