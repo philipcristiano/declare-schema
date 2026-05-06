@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.14](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.13...v0.0.14) - 2026-04-28
+
+### Added
+
+- Limit changes to current/specified schema
+
+### Other
+
+- *(deps)* update rust docker tag to v1.95
+
 ## [0.0.13](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.12...v0.0.13) - 2026-04-05
 
 ### Fixed
