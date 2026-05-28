@@ -88,7 +88,8 @@ async fn main() -> anyhow::Result<()> {
                     .await?;
                 for s in steps {
                     println!("Executing statement: {}", s);
-                    sqlx::query(&s.to_string()).execute(&mut *conn).await?;
+                    let safe = sqlx::AssertSqlSafe(s.to_string());
+                    sqlx::query(safe).execute(&mut *conn).await?;
                     println!("Executed.");
                 }
             }
