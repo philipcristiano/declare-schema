@@ -75,8 +75,8 @@ pub async fn migrate_schema_from_string(
     for s in steps {
         #[cfg(test)]
         println!("{:?}", s.to_string());
-
-        sqlx::query(&s.to_string()).execute(&mut *conn).await?;
+        let safe = sqlx::AssertSqlSafe(s.to_string());
+        sqlx::query(safe).execute(&mut *conn).await?;
     }
     Ok(())
 }
