@@ -1,6 +1,6 @@
 [package]
 name = "declare_schema"
-version = "0.0.15"
+version = "0.0.16"
 edition = "2024"
 description = "CLI / Library for Postgres schema migrations"
 license = "Apache-2.0"
