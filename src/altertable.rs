@@ -83,16 +83,19 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
     for from in &froms {
         if let None = tos.iter().find(|f| f.name() == from.name()) {
             match from {
-                Wrapped::CreateTable(ct) => r.push(Statement::Drop {
-                    object_type: sqlparser::ast::ObjectType::Table,
-                    table: None,
-                    if_exists: false,
-                    names: vec![ct.name.clone()],
-                    cascade: true,
-                    purge: false,
-                    restrict: false,
-                    temporary: false,
-                }),
+                Wrapped::CreateTable(ct) => {
+                    let quoted_name = quote_object_name(&ct.name);
+                    r.push(Statement::Drop {
+                        object_type: sqlparser::ast::ObjectType::Table,
+                        table: None,
+                        if_exists: false,
+                        names: vec![quoted_name],
+                        cascade: true,
+                        purge: false,
+                        restrict: false,
+                        temporary: false,
+                    })
+                },
 
                 Wrapped::CreateIndex(ci) => {
                     if let Some(name) = ci.name.clone() {
@@ -117,6 +120,26 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
     }
 
     Ok(r)
+}
+
+fn quote_object_name(name: &ObjectName) -> ObjectName {
+    use sqlparser::ast::{Ident, ObjectName, ObjectNamePart};
+    use sqlparser::tokenizer::Span;
+    ObjectName(
+      name.0
+          .iter()
+          .map(|part| match part {
+              ObjectNamePart::Identifier(ident) => {
+                  ObjectNamePart::Identifier(Ident {
+                      value: ident.value.clone(),
+                      quote_style: Some('"'),
+                      span: Span::empty(),
+                  })
+              }
+              ObjectNamePart::Function(f) => ObjectNamePart::Function(f.clone()),
+          })
+          .collect(),
+      )
 }
 
 fn compare_columns(
@@ -1120,6 +1143,17 @@ mod test_str_to_pg {
     }
 
     #[sqlx::test]
+    fn test_add_table_reserved_word(pool: PgPool) {
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE "user" (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"CREATE TABLE "user" (id UUID)"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
     fn test_drop_table(pool: PgPool) {
         crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
             .await
@@ -1128,10 +1162,27 @@ mod test_str_to_pg {
             .await
             .expect("Migrate");
 
-        let alter = vec![r#"DROP TABLE test CASCADE"#];
+        let alter = vec![r#"DROP TABLE "test" CASCADE"#];
 
         assert_eq!(m, alter);
     }
+
+    #[sqlx::test]
+    fn test_drop_table_reserved_word(pool: PgPool) {
+        let m = crate::migrate_from_string(r#"CREATE TABLE "user" ()"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let m = crate::generate_migrations_from_string(r#""#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"DROP TABLE "user" CASCADE"#];
+
+
+        assert_eq!(m, alter);
+    }
+
 
     #[sqlx::test]
     fn test_add_primary_key_constraint(pool: PgPool) {
