@@ -53,13 +53,27 @@ pub enum MigrationError {
     UnnamedObject(altertable::Wrapped),
 }
 
+/// Diff a str with a DB and apply changes required to get the DB to match `str`. Used when you want
+/// to migrate a schema other than your current connection schema.
 pub async fn migrate_schema_from_string(
-    schema: &str,
-    src: &str,
+    schema_name: &str,
+    to_src: &str,
     pool: &PgPool,
 ) -> Result<(), MigrationError> {
-    let src_state = crate::source_postgres::from_pool_schema(&pool, &schema).await?;
-    let end_statements = schema::app_schema(src)?;
+    let src_state = crate::source_postgres::from_pool_schema(&pool, &schema_name).await?;
+    migrate_from_src(src_state, to_src, &pool).await
+}
+/// Diff a str with a DB and apply changes required to get the DB to match `str`
+///
+
+pub async fn migrate_from_string(to_schema: &str, pool: &PgPool) -> Result<(), MigrationError> {
+    let src_state = crate::source_postgres::from_pool(&pool).await?;
+    migrate_from_src(src_state, to_schema, &pool).await
+}
+
+async fn migrate_from_src(src_state: Vec<Wrapped>, to_schema: &str, pool: &PgPool) -> Result<(), MigrationError>{
+
+    let end_statements = schema::app_schema(to_schema)?;
     let end_state: Result<Vec<Wrapped>, MigrationError> = end_statements
         .clone()
         .into_iter()
@@ -80,12 +94,6 @@ pub async fn migrate_schema_from_string(
     }
     Ok(())
 }
-/// Diff a str with a DB and apply changes required to get the DB to match `str`
-///
-
-pub async fn migrate_from_string(src: &str, pool: &PgPool) -> Result<(), MigrationError> {
-    migrate_schema_from_string("public", &src, &pool).await
-}
 
 /// Diff a str with a DB and return SQL changes required to get the DB to match `str`
 
@@ -93,15 +101,20 @@ pub async fn generate_migrations_from_string(
     src: &str,
     pool: &PgPool,
 ) -> Result<Vec<String>, MigrationError> {
-    generate_migrations_from_string_for_schema("public", &src, &pool).await
+    let src_state = crate::source_postgres::from_pool(&pool).await?;
+    generate_migrations_for_source(src_state, &src).await
 }
 pub async fn generate_migrations_from_string_for_schema(
     schema: &str,
-    src: &str,
+    to_src: &str,
     pool: &PgPool,
 ) -> Result<Vec<String>, MigrationError> {
     let src_state = crate::source_postgres::from_pool_schema(&pool, &schema).await?;
-    let end_statements = schema::app_schema(src)?;
+    generate_migrations_for_source(src_state, to_src).await
+}
+
+async fn generate_migrations_for_source( src_state: Vec<Wrapped>, to_schema: &str) -> Result<Vec<String>, MigrationError> {
+    let end_statements = schema::app_schema(to_schema)?;
     let end_state: Result<Vec<Wrapped>, MigrationError> = end_statements
         .clone()
         .into_iter()
@@ -109,6 +122,5 @@ pub async fn generate_migrations_from_string_for_schema(
         .collect();
     let end_state = end_state?;
     let steps = crate::altertable::from_to(src_state, end_state)?;
-
     Ok(steps.into_iter().map(|f| f.to_string()).collect())
 }
