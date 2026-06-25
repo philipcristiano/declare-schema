@@ -52,6 +52,13 @@ pub enum MigrationError {
     #[error("Unsupported statement {0}")]
     UnnamedObject(altertable::Wrapped),
 }
+/// Diff a str with a DB and apply changes required to get the DB to match `str`
+/// Postgres schema is detected with current_schema()
+
+pub async fn migrate_from_string(to_schema: &str, pool: &PgPool) -> Result<(), MigrationError> {
+    let current_schema = sqlx::query!("SELECT current_schema();").fetch_one(pool).await?.current_schema.expect("Couldn't get current schema");
+    migrate_schema_from_string(&current_schema, to_schema, pool).await
+}
 
 /// Diff a str with a DB and apply changes required to get the DB to match `str`. Used when you want
 /// to migrate a schema other than your current connection schema.
@@ -62,13 +69,6 @@ pub async fn migrate_schema_from_string(
 ) -> Result<(), MigrationError> {
     let src_state = crate::source_postgres::from_pool_schema(&pool, &schema_name).await?;
     migrate_from_src(src_state, to_src, &pool).await
-}
-/// Diff a str with a DB and apply changes required to get the DB to match `str`
-///
-
-pub async fn migrate_from_string(to_schema: &str, pool: &PgPool) -> Result<(), MigrationError> {
-    let src_state = crate::source_postgres::from_pool(&pool).await?;
-    migrate_from_src(src_state, to_schema, &pool).await
 }
 
 async fn migrate_from_src(src_state: Vec<Wrapped>, to_schema: &str, pool: &PgPool) -> Result<(), MigrationError>{

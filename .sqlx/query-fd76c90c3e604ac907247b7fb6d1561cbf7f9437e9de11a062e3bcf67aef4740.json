@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select table_schema, table_name from information_schema.tables where table_schema = current_schema()",
+  "query": "select table_schema, table_name from information_schema.tables",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       true
     ]
   },
-  "hash": "b4499922596a53f51c2155411334b7f3a358a3416d6c555d6e466cd40431e675"
+  "hash": "fd76c90c3e604ac907247b7fb6d1561cbf7f9437e9de11a062e3bcf67aef4740"
 }

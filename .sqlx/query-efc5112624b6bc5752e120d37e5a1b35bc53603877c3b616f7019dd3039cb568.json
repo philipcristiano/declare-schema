@@ -6,12 +6,24 @@
       {
         "ordinal": 0,
         "name": "table_schema",
-        "type_info": "Name"
+        "type_info": "Name",
+        "origin": {
+          "Table": {
+            "table": "information_schema.tables",
+            "name": "table_schema"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "table_name",
-        "type_info": "Name"
+        "type_info": "Name",
+        "origin": {
+          "Table": {
+            "table": "information_schema.tables",
+            "name": "table_name"
+          }
+        }
       }
     ],
     "parameters": {
