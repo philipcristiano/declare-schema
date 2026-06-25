@@ -1,5 +1,5 @@
-use crate::altertable::Wrapped;
 use crate::MigrationError;
+use crate::altertable::Wrapped;
 use sqlparser::ast::helpers::stmt_create_table::CreateTableBuilder;
 use sqlparser::ast::{ColumnDef, CreateExtension, Ident, ObjectName};
 use std::collections::HashMap;
@@ -201,7 +201,11 @@ async fn table_columns(
 }
 
 pub async fn from_pool(pool: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationError> {
-    let current_schema = sqlx::query!("SELECT current_schema();").fetch_one(pool).await?.current_schema.expect("Couldn't get current schema");
+    let current_schema = sqlx::query!("SELECT current_schema();")
+        .fetch_one(pool)
+        .await?
+        .current_schema
+        .expect("Couldn't get current schema");
     let db_tables = sqlx::query_as!(
         PGTable,
         "select table_schema, table_name from information_schema.tables where table_schema = current_schema()",

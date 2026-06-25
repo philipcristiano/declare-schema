@@ -5,7 +5,7 @@ use sqlparser::ast::{AlterTableOperation, ObjectName, ObjectNamePart, Statement,
 use std::fmt::Display;
 
 pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> Result<Vec<Statement>, MigrationError> {
-    if f.name != t.name {
+    if !object_names_equal(&f.name, &t.name) {
         return Err(MigrationError::TablesNotMatching(f.clone(), t.clone()));
     }
 
@@ -81,7 +81,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
     }
 
     for from in &froms {
-        if let None = tos.iter().find(|f| f.name() == from.name()) {
+        if let None = tos.iter().find(|f| f.name_and_type_equals(from)) {
             match from {
                 Wrapped::CreateTable(ct) => {
                     let quoted_name = quote_object_name(&ct.name);
@@ -138,6 +138,21 @@ fn quote_object_name(name: &ObjectName) -> ObjectName {
             })
             .collect(),
     )
+}
+
+fn object_names_equal(a: &ObjectName, b: &ObjectName) -> bool {
+    if a.0.len() != b.0.len() {
+        return false;
+    }
+    a.0.iter().zip(b.0.iter()).all(|(a_part, b_part)| {
+        match (a_part, b_part) {
+            (ObjectNamePart::Identifier(a_ident), ObjectNamePart::Identifier(b_ident)) => {
+                // Compare case-insensitively by value, ignoring quote_style
+                a_ident.value.eq_ignore_ascii_case(&b_ident.value)
+            }
+            _ => a_part == b_part,
+        }
+    })
 }
 
 fn compare_columns(
@@ -591,12 +606,16 @@ impl Wrapped {
         match self {
             Self::CreateTable(ct) => {
                 if let Self::CreateTable(other_table) = other {
-                    return ct.name == other_table.name;
+                    return object_names_equal(&ct.name, &other_table.name);
                 }
             }
             Self::CreateIndex(ci) => {
                 if let Self::CreateIndex(other_index) = other {
-                    return ci.name == other_index.name;
+                    match (&ci.name, &other_index.name) {
+                        (Some(a), Some(b)) => return object_names_equal(a, b),
+                        (None, None) => return false,
+                        _ => return false,
+                    }
                 }
             }
             Self::CreateExtension { name } => {
@@ -1156,6 +1175,48 @@ mod test_str_to_pg {
             .expect("Migrate");
 
         let alter = vec![r#"CREATE TABLE test (id UUID)"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_table_with_quotes(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE "test" (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE "test" (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter: Vec<String> = vec![];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_table_removing_quotes(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE "test" (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter: Vec<String> = vec![];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_table_adding_quotes(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string(r#"CREATE TABLE "test" (id uuid)"#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter: Vec<String> = vec![];
 
         assert_eq!(m, alter);
     }
