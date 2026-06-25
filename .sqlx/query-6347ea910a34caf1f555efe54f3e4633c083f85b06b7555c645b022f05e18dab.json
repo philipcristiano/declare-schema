@@ -6,7 +6,13 @@
       {
         "ordinal": 0,
         "name": "extname",
-        "type_info": "Name"
+        "type_info": "Name",
+        "origin": {
+          "Table": {
+            "table": "pg_extension",
+            "name": "extname"
+          }
+        }
       }
     ],
     "parameters": {

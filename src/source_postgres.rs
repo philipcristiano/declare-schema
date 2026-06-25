@@ -201,13 +201,14 @@ async fn table_columns(
 }
 
 pub async fn from_pool(pool: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationError> {
+    let current_schema = sqlx::query!("SELECT current_schema();").fetch_one(pool).await?.current_schema.expect("Couldn't get current schema");
     let db_tables = sqlx::query_as!(
         PGTable,
         "select table_schema, table_name from information_schema.tables where table_schema = current_schema()",
     )
     .fetch_all(pool)
     .await?;
-    tables_to_wrapped(pool, db_tables).await
+    tables_to_wrapped(pool, db_tables, current_schema.as_str()).await
 }
 pub async fn from_pool_schema(
     pool: &sqlx::PgPool,
@@ -220,24 +221,23 @@ pub async fn from_pool_schema(
     )
     .fetch_all(pool)
     .await?;
-    tables_to_wrapped(pool, db_tables).await
+    tables_to_wrapped(pool, db_tables, schema).await
 }
 
 async fn tables_to_wrapped(
     pool: &sqlx::PgPool,
     db_tables: Vec<PGTable>,
+    schema: &str,
 ) -> Result<Vec<Wrapped>, MigrationError> {
-    let mut schema = "str".to_string();
-
     let mut table_map: HashMap<ObjectName, CreateTableBuilder> = HashMap::new();
     for db_table in db_tables {
-        schema = db_table.table_schema.expect("Table needs a schema");
+        let table_schema = db_table.table_schema.expect("Table needs a schema");
         #[cfg(test)]
         println!("table {:?}.{:?}", schema, db_table.table_name);
 
         if let Some(table_name) = db_table.table_name {
             let object_name = string_to_object_name(Some(table_name.clone()))?;
-            let columns = table_columns(pool, schema.to_string(), table_name.clone()).await?;
+            let columns = table_columns(pool, table_schema.to_string(), table_name.clone()).await?;
             let constraints =
                 table_constraints(pool, schema.to_string(), table_name.clone()).await?;
             let b = CreateTableBuilder::new(object_name.clone())
