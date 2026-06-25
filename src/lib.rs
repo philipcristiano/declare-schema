@@ -35,9 +35,13 @@ use thiserror::Error;
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum MigrationError {
-    #[error("The table index cannot be modified yet: `From: {0} To: {1}`. Try adding a new index then dropping the old one")]
+    #[error(
+        "The table index cannot be modified yet: `From: {0} To: {1}`. Try adding a new index then dropping the old one"
+    )]
     CannotModifyIndex(sqlparser::ast::CreateIndex, sqlparser::ast::CreateIndex),
-    #[error("The table constraint cannot be modified yet: From: `{0}` To: {1}. Try adding a new constraint then dropping the old one")]
+    #[error(
+        "The table constraint cannot be modified yet: From: `{0}` To: {1}. Try adding a new constraint then dropping the old one"
+    )]
     CannotModifyTableConstraint(TableConstraint, TableConstraint),
     #[error("These are not the same tables {0} {1}")]
     TablesNotMatching(CreateTable, CreateTable),
@@ -56,7 +60,11 @@ pub enum MigrationError {
 /// Postgres schema is detected with current_schema()
 
 pub async fn migrate_from_string(to_schema: &str, pool: &PgPool) -> Result<(), MigrationError> {
-    let current_schema = sqlx::query!("SELECT current_schema();").fetch_one(pool).await?.current_schema.expect("Couldn't get current schema");
+    let current_schema = sqlx::query!("SELECT current_schema();")
+        .fetch_one(pool)
+        .await?
+        .current_schema
+        .expect("Couldn't get current schema");
     migrate_schema_from_string(&current_schema, to_schema, pool).await
 }
 
@@ -67,15 +75,18 @@ pub async fn migrate_schema_from_string(
     to_src: &str,
     pool: &PgPool,
 ) -> Result<(), MigrationError> {
-    let src_state = crate::source_postgres::from_pool_schema(&pool, &schema_name).await?;
-    migrate_from_src(src_state, to_src, &pool).await
+    let src_state = crate::source_postgres::from_pool_schema(&pool, schema_name).await?;
+    migrate_from_src(src_state, to_src, schema_name, &pool).await // ← pass schema_name
 }
 
-async fn migrate_from_src(src_state: Vec<Wrapped>, to_schema: &str, pool: &PgPool) -> Result<(), MigrationError>{
-
+async fn migrate_from_src(
+    src_state: Vec<Wrapped>,
+    to_schema: &str,
+    schema_name: &str, // ← add this
+    pool: &PgPool,
+) -> Result<(), MigrationError> {
     let end_statements = schema::app_schema(to_schema)?;
     let end_state: Result<Vec<Wrapped>, MigrationError> = end_statements
-        .clone()
         .into_iter()
         .map(|s| Wrapped::try_from(s))
         .collect();
@@ -83,6 +94,9 @@ async fn migrate_from_src(src_state: Vec<Wrapped>, to_schema: &str, pool: &PgPoo
     let steps = crate::altertable::from_to(src_state, end_state)?;
 
     let mut conn = pool.acquire().await?;
+    let q = format!("SET search_path TO \"{}\"", schema_name);
+    let safe = sqlx::AssertSqlSafe(q);
+    sqlx::query(safe).execute(&mut *conn).await?;
     sqlx::query("SET lock_timeout TO 5000")
         .execute(&mut *conn)
         .await?;
@@ -113,7 +127,10 @@ pub async fn generate_migrations_from_string_for_schema(
     generate_migrations_for_source(src_state, to_src).await
 }
 
-async fn generate_migrations_for_source( src_state: Vec<Wrapped>, to_schema: &str) -> Result<Vec<String>, MigrationError> {
+async fn generate_migrations_for_source(
+    src_state: Vec<Wrapped>,
+    to_schema: &str,
+) -> Result<Vec<String>, MigrationError> {
     let end_statements = schema::app_schema(to_schema)?;
     let end_state: Result<Vec<Wrapped>, MigrationError> = end_statements
         .clone()

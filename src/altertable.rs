@@ -95,7 +95,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                         restrict: false,
                         temporary: false,
                     })
-                },
+                }
 
                 Wrapped::CreateIndex(ci) => {
                     if let Some(name) = ci.name.clone() {
@@ -126,20 +126,18 @@ fn quote_object_name(name: &ObjectName) -> ObjectName {
     use sqlparser::ast::{Ident, ObjectName, ObjectNamePart};
     use sqlparser::tokenizer::Span;
     ObjectName(
-      name.0
-          .iter()
-          .map(|part| match part {
-              ObjectNamePart::Identifier(ident) => {
-                  ObjectNamePart::Identifier(Ident {
-                      value: ident.value.clone(),
-                      quote_style: Some('"'),
-                      span: Span::empty(),
-                  })
-              }
-              ObjectNamePart::Function(f) => ObjectNamePart::Function(f.clone()),
-          })
-          .collect(),
-      )
+        name.0
+            .iter()
+            .map(|part| match part {
+                ObjectNamePart::Identifier(ident) => ObjectNamePart::Identifier(Ident {
+                    value: ident.value.clone(),
+                    quote_style: Some('"'),
+                    span: Span::empty(),
+                }),
+                ObjectNamePart::Function(f) => ObjectNamePart::Function(f.clone()),
+            })
+            .collect(),
+    )
 }
 
 fn compare_columns(
@@ -1038,6 +1036,26 @@ mod test_str_to_pg {
     }
 
     #[sqlx::test]
+    fn test_noop_for_schema_table(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE SCHEMA schema1 "#, &pool)
+            .await
+            .expect("Setup schema");
+        crate::migrate_schema_from_string("schema1", r#"CREATE TABLE test ()"#, &pool)
+            .await
+            .expect("Setup");
+        let m = crate::generate_migrations_from_string_for_schema(
+            "schema1",
+            r#"CREATE TABLE test ()"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter: Vec<String> = vec![];
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
     fn test_remove_column(pool: PgPool) {
         crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
             .await
@@ -1179,10 +1197,8 @@ mod test_str_to_pg {
 
         let alter = vec![r#"DROP TABLE "user" CASCADE"#];
 
-
         assert_eq!(m, alter);
     }
-
 
     #[sqlx::test]
     fn test_add_primary_key_constraint(pool: PgPool) {
