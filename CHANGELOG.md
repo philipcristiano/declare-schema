@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.20](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.19...v0.0.20) - 2026-06-25
+
+### Fixed
+
+- Handle quoted table names
+
 ## [0.0.19](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.18...v0.0.19) - 2026-06-25
 
 ### Fixed
