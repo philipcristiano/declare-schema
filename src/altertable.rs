@@ -468,8 +468,9 @@ fn compare_constraints(
                     }
                 });
                 if let None = maybe_fk {
+                    let quoted_name = quote_object_name(&table_name);
                     r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
+                        name: quoted_name,
                         if_exists: false,
                         location: None,
                         only: false,
@@ -494,8 +495,9 @@ fn compare_constraints(
                     }
                 });
                 if let None = maybe_uniq {
+                    let quoted_name = quote_object_name(&table_name);
                     r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
+                        name: quoted_name,
                         if_exists: false,
                         location: None,
                         only: false,
@@ -520,8 +522,9 @@ fn compare_constraints(
                     }
                 });
                 if let None = maybe_check {
+                    let quoted_name = quote_object_name(&table_name);
                     r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
+                        name: quoted_name,
                         if_exists: false,
                         location: None,
                         only: false,
@@ -837,6 +840,22 @@ mod test_str_to_str {
             r#"CREATE TABLE "test" (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
         );
         let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
+
+        let r = from_to_table(&start, &target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"ALTER TABLE "test" DROP CONSTRAINT fk_id CASCADE"#,
+        )];
+
+        assert_eq!(r, alter);
+    }
+
+    #[test]
+    fn test_drop_foreign_key_constraint_includes_quotes() {
+        let start = str_to_create_table(
+            r#"CREATE TABLE test (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
+        );
+        let target = str_to_create_table(r#"CREATE TABLE test (id uuid)"#);
 
         let r = from_to_table(&start, &target).expect("works");
 
@@ -1315,7 +1334,7 @@ mod test_str_to_pg {
         .await
         .expect("Migrate");
 
-        let alter = vec![r#"ALTER TABLE test DROP CONSTRAINT fk_id CASCADE"#];
+        let alter = vec![r#"ALTER TABLE "test" DROP CONSTRAINT fk_id CASCADE"#];
 
         assert_eq!(m, alter);
     }
@@ -1405,7 +1424,7 @@ mod test_str_to_pg {
             .await
             .expect("Migrate");
 
-        let alter = vec![r#"ALTER TABLE test DROP CONSTRAINT check_id CASCADE"#];
+        let alter = vec![r#"ALTER TABLE "test" DROP CONSTRAINT check_id CASCADE"#];
 
         assert_eq!(m, alter);
     }
@@ -1479,7 +1498,7 @@ mod test_str_to_pg {
             .await
             .expect("Migrate");
 
-        let alter = vec![r#"ALTER TABLE test DROP CONSTRAINT id_u CASCADE"#];
+        let alter = vec![r#"ALTER TABLE "test" DROP CONSTRAINT id_u CASCADE"#];
 
         assert_eq!(m, alter);
     }
