@@ -606,35 +606,27 @@ impl Wrapped {
         if let (None, None) = (self.name(), other.name()) {
             return false;
         }
-        match self {
-            Self::CreateTable(ct) => {
-                if let Self::CreateTable(other_table) = other {
-                    return object_names_equal(&ct.name, &other_table.name);
-                }
+        match (self, other) {
+            (Self::CreateTable(ct), Self::CreateTable(ot)) => {
+                object_names_equal(&ct.name, &ot.name)
             }
-            Self::CreateIndex(ci) => {
-                if let Self::CreateIndex(other_index) = other {
-                    match (&ci.name, &other_index.name) {
-                        (Some(a), Some(b)) => return object_names_equal(a, b),
-                        (None, None) => return false,
-                        _ => return false,
-                    }
-                }
+            (Self::CreateIndex(ci), Self::CreateIndex(oi)) => match (&ci.name, &oi.name) {
+                (Some(a), Some(b)) => object_names_equal(a, b),
+                (None, None) => false,
+                _ => false,
+            },
+            (Self::CreateExtension { name }, Self::CreateExtension { name: other_name }) => {
+                name == other_name
             }
-            Self::CreateExtension { name } => {
-                let name1 = name;
-                if let Self::CreateExtension { name } = other {
-                    return name1 == name;
-                }
-            }
-            Self::CreateSchema { schema_name, .. } => {
-                let name1 = schema_name;
-                if let Self::CreateSchema { schema_name, .. } = other {
-                    return name1 == schema_name;
-                }
-            }
+            (
+                Self::CreateSchema { schema_name, .. },
+                Self::CreateSchema {
+                    schema_name: other_schema_name,
+                    ..
+                },
+            ) => schema_name == other_schema_name,
+            (_, _) => false,
         }
-        return false;
     }
 
     fn name(&self) -> Option<ObjectName> {
