@@ -25,97 +25,12 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
             return Err(MigrationError::UnnamedObject(wrapped_to.clone()));
         }
         let matched_from = froms.iter().find(|f| f.name_and_type_equals(wrapped_to));
-        match wrapped_to {
-            Wrapped::CreateTable(to_table) => {
-                if let Some(Wrapped::CreateTable(from)) = matched_from {
-                    let mut changes = from_to_table(&from, &to_table)?;
-                    r.append(&mut changes);
-                } else {
-                    r.push(Statement::CreateTable(to_table.clone()));
-                }
-            }
-            Wrapped::CreateIndex(to_index) => {
-                if let Some(Wrapped::CreateIndex(from)) = matched_from {
-                    if from != to_index {
-                        return Err(MigrationError::CannotModifyIndex(
-                            from.clone(),
-                            to_index.clone(),
-                        ));
-                    }
-                    eprintln!("TODO: Existing index matched, should check for changes");
-                } else {
-                    r.push(Statement::CreateIndex(to_index.clone()));
-                }
-            }
-            Wrapped::CreateExtension { name } => {
-                if let None = matched_from {
-                    r.push(Statement::CreateExtension(CreateExtension {
-                        name: name.to_owned(),
-                        cascade: false,
-                        if_not_exists: false,
-                        schema: None,
-                        version: None,
-                    }))
-                }
-            }
-            Wrapped::CreateSchema {
-                schema_name,
-                if_not_exists,
-                with,
-                options,
-                default_collate_spec,
-                clone,
-            } => {
-                if let None = matched_from {
-                    r.push(Statement::CreateSchema {
-                        schema_name: schema_name.to_owned(),
-                        if_not_exists: if_not_exists.to_owned(),
-                        with: with.to_owned(),
-                        options: options.to_owned(),
-                        default_collate_spec: default_collate_spec.to_owned(),
-                        clone: clone.to_owned(),
-                    })
-                }
-            }
-        }
+        wrapped_to.statement_from(matched_from, &mut r)?;
     }
 
     for from in &froms {
         if let None = tos.iter().find(|f| f.name_and_type_equals(from)) {
-            match from {
-                Wrapped::CreateTable(ct) => {
-                    let quoted_name = quote_object_name(&ct.name);
-                    r.push(Statement::Drop {
-                        object_type: sqlparser::ast::ObjectType::Table,
-                        table: None,
-                        if_exists: false,
-                        names: vec![quoted_name],
-                        cascade: true,
-                        purge: false,
-                        restrict: false,
-                        temporary: false,
-                    })
-                }
-
-                Wrapped::CreateIndex(ci) => {
-                    if let Some(name) = ci.name.clone() {
-                        r.push(Statement::Drop {
-                            object_type: sqlparser::ast::ObjectType::Index,
-                            table: None,
-                            if_exists: false,
-                            names: vec![name],
-                            cascade: true,
-                            purge: false,
-                            restrict: false,
-                            temporary: false,
-                        })
-                    }
-                }
-                // Extensions won't be removed
-                Wrapped::CreateExtension { .. } => (),
-                // Schemas wont be dropped
-                Wrapped::CreateSchema { .. } => (),
-            }
+            from.create_statements(&mut r)?
         }
     }
 
@@ -668,6 +583,108 @@ impl Wrapped {
 
             statement => Err(MigrationError::UnsupportedStatementType(statement)),
         }
+    }
+
+    /// Create migration statements to with this object as the known current state.
+    fn statement_from(
+        &self,
+        matched_from: Option<&Wrapped>,
+        r: &mut Vec<Statement>,
+    ) -> anyhow::Result<(), MigrationError> {
+        match self {
+            Wrapped::CreateTable(to_table) => {
+                if let Some(Wrapped::CreateTable(from)) = matched_from {
+                    let mut changes = from_to_table(&from, &to_table)?;
+                    r.append(&mut changes);
+                } else {
+                    r.push(Statement::CreateTable(to_table.clone()));
+                }
+            }
+            Wrapped::CreateIndex(to_index) => {
+                if let Some(Wrapped::CreateIndex(from)) = matched_from {
+                    if from != to_index {
+                        return Err(MigrationError::CannotModifyIndex(
+                            from.clone(),
+                            to_index.clone(),
+                        ));
+                    }
+                    eprintln!("TODO: Existing index matched, should check for changes");
+                } else {
+                    r.push(Statement::CreateIndex(to_index.clone()));
+                }
+            }
+            Wrapped::CreateExtension { name } => {
+                if let None = matched_from {
+                    r.push(Statement::CreateExtension(CreateExtension {
+                        name: name.to_owned(),
+                        cascade: false,
+                        if_not_exists: false,
+                        schema: None,
+                        version: None,
+                    }))
+                }
+            }
+            Wrapped::CreateSchema {
+                schema_name,
+                if_not_exists,
+                with,
+                options,
+                default_collate_spec,
+                clone,
+            } => {
+                if let None = matched_from {
+                    r.push(Statement::CreateSchema {
+                        schema_name: schema_name.to_owned(),
+                        if_not_exists: if_not_exists.to_owned(),
+                        with: with.to_owned(),
+                        options: options.to_owned(),
+                        default_collate_spec: default_collate_spec.to_owned(),
+                        clone: clone.to_owned(),
+                    })
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Create migration statements to with this object as the known current state.
+    fn create_statements(&self, r: &mut Vec<Statement>) -> anyhow::Result<(), MigrationError> {
+        match self {
+            Wrapped::CreateTable(ct) => {
+                let quoted_name = quote_object_name(&ct.name);
+                r.push(Statement::Drop {
+                    object_type: sqlparser::ast::ObjectType::Table,
+                    table: None,
+                    if_exists: false,
+                    names: vec![quoted_name],
+                    cascade: true,
+                    purge: false,
+                    restrict: false,
+                    temporary: false,
+                })
+            }
+
+            Wrapped::CreateIndex(ci) => {
+                if let Some(name) = ci.name.clone() {
+                    r.push(Statement::Drop {
+                        object_type: sqlparser::ast::ObjectType::Index,
+                        table: None,
+                        if_exists: false,
+                        names: vec![name],
+                        cascade: true,
+                        purge: false,
+                        restrict: false,
+                        temporary: false,
+                    })
+                }
+            }
+            // Extensions won't be removed
+            Wrapped::CreateExtension { .. } => (),
+            // Schemas wont be dropped
+            Wrapped::CreateSchema { .. } => (),
+        }
+
+        Ok(())
     }
 }
 
