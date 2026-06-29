@@ -20,10 +20,12 @@
 
 /// Diff'ing of ASTs and statement generation
 pub mod altertable;
+mod declared_types;
 /// str parsing to generate sqlparser ASTs
 pub mod schema;
 /// Postgres Server reading to generate sqlparser ASTs
 pub mod source_postgres;
+mod sqlparser_helpers;
 
 use altertable::Wrapped;
 use sqlparser::ast::CreateTable;

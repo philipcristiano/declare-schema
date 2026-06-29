@@ -1,22 +1,9 @@
 use crate::MigrationError;
-use sqlparser::ast::table_constraints::{CheckConstraint, ForeignKeyConstraint, UniqueConstraint};
-use sqlparser::ast::{AlterTable, CreateExtension, CreateIndex, CreateTable, DropBehavior};
-use sqlparser::ast::{AlterTableOperation, ObjectName, ObjectNamePart, Statement, TableConstraint};
+use crate::declared_types::table::DeclaredTable;
+use crate::sqlparser_helpers::{object_names_equal, quote_object_name};
+use sqlparser::ast::{CreateExtension, CreateIndex, CreateTable};
+use sqlparser::ast::{ObjectName, ObjectNamePart, Statement};
 use std::fmt::Display;
-
-pub fn from_to_table(f: &CreateTable, t: &CreateTable) -> Result<Vec<Statement>, MigrationError> {
-    if !object_names_equal(&f.name, &t.name) {
-        return Err(MigrationError::TablesNotMatching(f.clone(), t.clone()));
-    }
-
-    let mut r = Vec::new();
-    let mut column_statements = compare_columns(&f.name, &f.columns, &t.columns)?;
-    let mut constraint_statements = compare_constraints(&f.name, &f.constraints, &t.constraints)?;
-
-    r.append(&mut column_statements);
-    r.append(&mut constraint_statements);
-    Ok(r)
-}
 
 pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>, MigrationError> {
     let mut r: Vec<Statement> = Vec::new();
@@ -37,433 +24,9 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
     Ok(r)
 }
 
-fn quote_object_name(name: &ObjectName) -> ObjectName {
-    use sqlparser::ast::{Ident, ObjectName, ObjectNamePart};
-    use sqlparser::tokenizer::Span;
-    ObjectName(
-        name.0
-            .iter()
-            .map(|part| match part {
-                ObjectNamePart::Identifier(ident) => ObjectNamePart::Identifier(Ident {
-                    value: ident.value.clone(),
-                    quote_style: Some('"'),
-                    span: Span::empty(),
-                }),
-                ObjectNamePart::Function(f) => ObjectNamePart::Function(f.clone()),
-            })
-            .collect(),
-    )
-}
-
-fn object_names_equal(a: &ObjectName, b: &ObjectName) -> bool {
-    if a.0.len() != b.0.len() {
-        return false;
-    }
-    a.0.iter().zip(b.0.iter()).all(|(a_part, b_part)| {
-        match (a_part, b_part) {
-            (ObjectNamePart::Identifier(a_ident), ObjectNamePart::Identifier(b_ident)) => {
-                // Compare case-insensitively by value, ignoring quote_style
-                a_ident.value.eq_ignore_ascii_case(&b_ident.value)
-            }
-            _ => a_part == b_part,
-        }
-    })
-}
-
-fn compare_columns(
-    table_name: &ObjectName,
-    f: &Vec<sqlparser::ast::ColumnDef>,
-    t: &Vec<sqlparser::ast::ColumnDef>,
-) -> Result<Vec<Statement>, MigrationError> {
-    let mut r = Vec::new();
-    for f_column in f.clone() {
-        eprintln!("find column {}", f_column);
-        let maybe_t_column = t.iter().find(|ti| ti.name == f_column.name);
-        if let Some(t_column) = maybe_t_column {
-            eprintln!("matching column {}", t_column)
-        } else {
-            r.push(Statement::AlterTable(AlterTable {
-                name: table_name.clone(),
-                if_exists: false,
-                location: None,
-                only: false,
-                on_cluster: None,
-                table_type: None,
-                operations: vec![AlterTableOperation::DropColumn {
-                    column_names: vec![f_column.name.clone()],
-                    has_column_keyword: true,
-                    if_exists: false,
-                    drop_behavior: Some(DropBehavior::Cascade),
-                }],
-                end_token: semicolon_token(),
-            }));
-        }
-    }
-    for t_column in t {
-        eprintln!("find column {}", t_column);
-        let maybe_f_column = f.iter().find(|fi| fi.name == t_column.name);
-        if let Some(f_column) = maybe_f_column {
-            eprintln!("matching column {}", f_column);
-            let mut column_statements = compare_column(&table_name, &f_column, &t_column)?;
-            r.append(&mut column_statements);
-        } else {
-            r.push(Statement::AlterTable(AlterTable {
-                name: table_name.clone(),
-                if_exists: false,
-                location: None,
-                only: false,
-                on_cluster: None,
-                table_type: None,
-                operations: vec![AlterTableOperation::AddColumn {
-                    column_keyword: true,
-                    if_not_exists: false,
-                    column_def: t_column.to_owned(),
-                    column_position: None,
-                }],
-                end_token: semicolon_token(),
-            }));
-        }
-    }
-    Ok(r)
-}
-fn compare_column(
-    table_name: &ObjectName,
-    f: &sqlparser::ast::ColumnDef,
-    t: &sqlparser::ast::ColumnDef,
-) -> Result<Vec<Statement>, MigrationError> {
-    let mut r = Vec::new();
-    for to_opt in &t.options {
-        match &to_opt.option {
-            sqlparser::ast::ColumnOption::NotNull => {
-                let from_not_null = &f
-                    .options
-                    .iter()
-                    .find(|f_opt| matches!(f_opt.option, sqlparser::ast::ColumnOption::NotNull));
-                if let None = from_not_null {
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::AlterColumn {
-                            column_name: t.name.clone(),
-                            op: sqlparser::ast::AlterColumnOperation::SetNotNull,
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-            sqlparser::ast::ColumnOption::Default(expr) => {
-                let from_default = &f
-                    .options
-                    .iter()
-                    .find(|f_opt| matches!(f_opt.option, sqlparser::ast::ColumnOption::Default(_)));
-                // Create the alter statement but dont push it yet
-                let alter = Statement::AlterTable(AlterTable {
-                    name: table_name.clone(),
-                    if_exists: false,
-                    location: None,
-                    only: false,
-                    on_cluster: None,
-                    table_type: None,
-                    operations: vec![AlterTableOperation::AlterColumn {
-                        column_name: t.name.clone(),
-                        op: sqlparser::ast::AlterColumnOperation::SetDefault {
-                            value: expr.to_owned(),
-                        },
-                    }],
-                    end_token: semicolon_token(),
-                });
-                match from_default {
-                    // There is no default previously, alter the table
-                    None => r.push(alter),
-                    Some(f_opt) => {
-                        let to_opt_option = &to_opt.option;
-                        // If the from and to options are different, alter the table
-                        if f_opt.option != to_opt_option.clone() {
-                            r.push(alter)
-                        }
-                    }
-                }
-                if let None = from_default {}
-            }
-
-            x => eprintln!("Column Option not supported yet {:?}", x),
-        }
-    }
-    for f_opt in &f.options {
-        match &f_opt.option {
-            sqlparser::ast::ColumnOption::NotNull => {
-                let to_not_null = &t
-                    .options
-                    .iter()
-                    .find(|to_opt| matches!(to_opt.option, sqlparser::ast::ColumnOption::NotNull));
-                if let None = to_not_null {
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::AlterColumn {
-                            column_name: t.name.clone(),
-                            op: sqlparser::ast::AlterColumnOperation::DropNotNull,
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-
-            sqlparser::ast::ColumnOption::Default(_) => {
-                let to_default = &t.options.iter().find(|to_opt| {
-                    matches!(to_opt.option, sqlparser::ast::ColumnOption::Default(_))
-                });
-                if let None = to_default {
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::AlterColumn {
-                            column_name: t.name.clone(),
-                            op: sqlparser::ast::AlterColumnOperation::DropDefault,
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-
-            x => eprintln!("Column Option not supported yet {:?}", x),
-        }
-    }
-    Ok(r)
-}
-
-fn compare_constraints(
-    table_name: &ObjectName,
-    f: &Vec<sqlparser::ast::TableConstraint>,
-    t: &Vec<sqlparser::ast::TableConstraint>,
-) -> Result<Vec<Statement>, MigrationError> {
-    let mut r = Vec::new();
-
-    let maybe_f_pk = f
-        .iter()
-        .find(|fc| matches!(fc, TableConstraint::PrimaryKey { .. }));
-    for t_constraint in t.clone() {
-        match &t_constraint {
-            TableConstraint::PrimaryKey { .. } => {
-                if let Some(_f_pk) = maybe_f_pk {
-                    eprintln!("Has pk already")
-                } else {
-                    eprintln!("Needs pk");
-
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::AddConstraint {
-                            constraint: t_constraint.to_owned(),
-                            not_valid: false,
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-            TableConstraint::ForeignKey(ForeignKeyConstraint { name, .. }) => {
-                let to_name = name;
-                let maybe_fk = f.iter().find(|fc| {
-                    if let TableConstraint::ForeignKey(ForeignKeyConstraint { name, .. }) = fc {
-                        to_name == name
-                    } else {
-                        false
-                    }
-                });
-                if let Some(fk) = maybe_fk {
-                    if fk != &t_constraint {
-                        return Err(MigrationError::CannotModifyTableConstraint(
-                            fk.clone(),
-                            t_constraint.clone(),
-                        ));
-                    }
-                } else {
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::AddConstraint {
-                            constraint: t_constraint.to_owned(),
-                            not_valid: false,
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-            TableConstraint::Unique(UniqueConstraint { name, .. }) => {
-                let to_name = name;
-                let maybe_uniq = f.iter().find(|uniq| {
-                    if let TableConstraint::Unique(UniqueConstraint { name, .. }) = uniq {
-                        to_name == name
-                    } else {
-                        false
-                    }
-                });
-                if let Some(_uniq) = maybe_uniq {
-                    eprintln!("Has Unique already TODO: Check equal")
-                } else {
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::AddConstraint {
-                            constraint: t_constraint.to_owned(),
-                            not_valid: false,
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-            TableConstraint::Check(CheckConstraint { name, .. }) => {
-                let to_name = name;
-                let maybe_check = f.iter().find(|check| {
-                    if let TableConstraint::Check(CheckConstraint { name, .. }) = check {
-                        to_name == name
-                    } else {
-                        false
-                    }
-                });
-                if let Some(fk) = maybe_check {
-                    if fk != &t_constraint {
-                        return Err(MigrationError::CannotModifyTableConstraint(
-                            fk.clone(),
-                            t_constraint.clone(),
-                        ));
-                    }
-                } else {
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: table_name.clone(),
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::AddConstraint {
-                            constraint: t_constraint.to_owned(),
-                            not_valid: false,
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-            x => eprintln!("Constraints not supported {:?}", x),
-        }
-    }
-    for f_constraint in f {
-        match &f_constraint {
-            TableConstraint::ForeignKey(ForeignKeyConstraint { name, .. }) => {
-                let from_name = name;
-                let maybe_fk = &t.iter().find(|tc| {
-                    if let TableConstraint::ForeignKey(ForeignKeyConstraint { name, .. }) = tc {
-                        from_name == name
-                    } else {
-                        false
-                    }
-                });
-                if let None = maybe_fk {
-                    let quoted_name = quote_object_name(&table_name);
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: quoted_name,
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::DropConstraint {
-                            if_exists: false,
-                            drop_behavior: Some(DropBehavior::Cascade),
-                            name: name.clone().unwrap(),
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-            TableConstraint::Unique(UniqueConstraint { name, .. }) => {
-                let from_name = name;
-                let maybe_uniq = &t.iter().find(|uniq| {
-                    if let TableConstraint::Unique(UniqueConstraint { name, .. }) = uniq {
-                        from_name == name
-                    } else {
-                        false
-                    }
-                });
-                if let None = maybe_uniq {
-                    let quoted_name = quote_object_name(&table_name);
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: quoted_name,
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::DropConstraint {
-                            if_exists: false,
-                            drop_behavior: Some(DropBehavior::Cascade),
-                            name: name.clone().unwrap(),
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-            TableConstraint::Check(CheckConstraint { name, .. }) => {
-                let from_name = name;
-                let maybe_check = &t.iter().find(|check| {
-                    if let TableConstraint::Check(CheckConstraint { name, .. }) = check {
-                        from_name == name
-                    } else {
-                        false
-                    }
-                });
-                if let None = maybe_check {
-                    let quoted_name = quote_object_name(&table_name);
-                    r.push(Statement::AlterTable(AlterTable {
-                        name: quoted_name,
-                        if_exists: false,
-                        location: None,
-                        only: false,
-                        on_cluster: None,
-                        table_type: None,
-                        operations: vec![AlterTableOperation::DropConstraint {
-                            if_exists: false,
-                            drop_behavior: Some(DropBehavior::Cascade),
-                            name: name.clone().unwrap(),
-                        }],
-                        end_token: semicolon_token(),
-                    }));
-                }
-            }
-            TableConstraint::PrimaryKey { .. } => {}
-            x => eprintln!("Contraints not supported, {:?}", x),
-        }
-    }
-    Ok(r)
-}
-
 #[derive(Clone, Debug)]
 pub enum Wrapped {
-    CreateTable(CreateTable),
+    CreateTable(DeclaredTable),
     CreateIndex(CreateIndex),
     CreateExtension {
         name: sqlparser::ast::Ident,
@@ -560,7 +123,7 @@ impl Wrapped {
 
     pub fn try_from(s: Statement) -> anyhow::Result<Wrapped, MigrationError> {
         match s {
-            Statement::CreateTable(ct) => Ok(Wrapped::CreateTable(ct)),
+            Statement::CreateTable(ct) => Ok(Wrapped::CreateTable(DeclaredTable::new(ct))),
             Statement::CreateIndex(ci) => Ok(Wrapped::CreateIndex(ci)),
             Statement::CreateExtension(CreateExtension { name, .. }) => {
                 Ok(Wrapped::CreateExtension { name })
@@ -589,18 +152,14 @@ impl Wrapped {
     fn statement_from(
         &self,
         matched_from: Option<&Wrapped>,
-        r: &mut Vec<Statement>,
+        mut r: &mut Vec<Statement>,
     ) -> anyhow::Result<(), MigrationError> {
-        match self {
-            Wrapped::CreateTable(to_table) => {
-                if let Some(Wrapped::CreateTable(from)) = matched_from {
-                    let mut changes = from_to_table(&from, &to_table)?;
-                    r.append(&mut changes);
-                } else {
-                    r.push(Statement::CreateTable(to_table.clone()));
-                }
+        match (self, matched_from) {
+            (Wrapped::CreateTable(to_table), Some(Wrapped::CreateTable(from_table))) => {
+                to_table.statement_from(from_table, &mut r)?
             }
-            Wrapped::CreateIndex(to_index) => {
+            (Wrapped::CreateTable(to_table), None) => to_table.create(&mut r)?,
+            (Wrapped::CreateIndex(to_index), _) => {
                 if let Some(Wrapped::CreateIndex(from)) = matched_from {
                     if from != to_index {
                         return Err(MigrationError::CannotModifyIndex(
@@ -613,7 +172,7 @@ impl Wrapped {
                     r.push(Statement::CreateIndex(to_index.clone()));
                 }
             }
-            Wrapped::CreateExtension { name } => {
+            (Wrapped::CreateExtension { name }, _) => {
                 if let None = matched_from {
                     r.push(Statement::CreateExtension(CreateExtension {
                         name: name.to_owned(),
@@ -624,14 +183,17 @@ impl Wrapped {
                     }))
                 }
             }
-            Wrapped::CreateSchema {
-                schema_name,
-                if_not_exists,
-                with,
-                options,
-                default_collate_spec,
-                clone,
-            } => {
+            (
+                Wrapped::CreateSchema {
+                    schema_name,
+                    if_not_exists,
+                    with,
+                    options,
+                    default_collate_spec,
+                    clone,
+                },
+                _,
+            ) => {
                 if let None = matched_from {
                     r.push(Statement::CreateSchema {
                         schema_name: schema_name.to_owned(),
@@ -643,6 +205,7 @@ impl Wrapped {
                     })
                 }
             }
+            (_, _) => panic!("Unhandled case"),
         }
         Ok(())
     }
@@ -693,104 +256,6 @@ mod test_str_to_str {
     use super::*;
 
     #[test]
-    fn test_add_column() {
-        let empty_table = str_to_create_table(r#"CREATE TABLE "test" ()"#);
-        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-
-        let r = from_to_table(&empty_table, &target).expect("works");
-
-        let alter = vec![str_to_statement(r#"ALTER TABLE "test" ADD COLUMN id uuid"#)];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_remove_column() {
-        let start = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-        let target = str_to_create_table(r#"CREATE TABLE "test" ()"#);
-
-        let r = from_to_table(&start, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" DROP COLUMN id CASCADE"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_alter_column_not_null() {
-        let empty_table = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid NOT NULL)"#);
-
-        let r = from_to_table(&empty_table, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" ALTER COLUMN id SET NOT NULL"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_alter_column_drop_not_null() {
-        let empty_table = str_to_create_table(r#"CREATE TABLE "test" (id uuid NOT NULL)"#);
-        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-
-        let r = from_to_table(&empty_table, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" ALTER COLUMN id DROP NOT NULL"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_alter_column_set_default() {
-        let empty_table = str_to_create_table(r#"CREATE TABLE "test" (name varchar)"#);
-        let target = str_to_create_table(r#"CREATE TABLE "test" (name varchar DEFAULT 'foo')"#);
-
-        let r = from_to_table(&empty_table, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" ALTER COLUMN name SET DEFAULT 'foo'"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_alter_column_set_new_default() {
-        let empty_table =
-            str_to_create_table(r#"CREATE TABLE "test" (name varchar DEFAULT 'foo')"#);
-        let target = str_to_create_table(r#"CREATE TABLE "test" (name varchar DEFAULT 'bar')"#);
-
-        let r = from_to_table(&empty_table, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" ALTER COLUMN name SET DEFAULT 'bar'"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_alter_column_drop_default() {
-        let empty_table =
-            str_to_create_table(r#"CREATE TABLE "test" (name varchar DEFAULT 'foo')"#);
-        let target = str_to_create_table(r#"CREATE TABLE "test" (name varchar )"#);
-
-        let r = from_to_table(&empty_table, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" ALTER COLUMN name DROP DEFAULT"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
     fn test_add_table() {
         let empty = vec![];
         let target = vec![str_to_wrapped(r#"CREATE TABLE "test" (id uuid)"#)];
@@ -810,129 +275,6 @@ mod test_str_to_str {
         let r = from_to(start, target).expect("works");
 
         let alter = vec![str_to_statement(r#"DROP TABLE "test" CASCADE"#)];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_add_primary_key_constraint() {
-        let start = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid, PRIMARY KEY(id))"#);
-
-        let r = from_to_table(&start, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" ADD PRIMARY KEY(id)"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_add_foreign_key_constraint() {
-        let start = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-        let target = str_to_create_table(
-            r#"CREATE TABLE "test" (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
-        );
-
-        let r = from_to_table(&start, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" ADD CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id)"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-    #[test]
-    fn test_drop_foreign_key_constraint() {
-        let start = str_to_create_table(
-            r#"CREATE TABLE "test" (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
-        );
-        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-
-        let r = from_to_table(&start, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" DROP CONSTRAINT fk_id CASCADE"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_drop_foreign_key_constraint_includes_quotes() {
-        let start = str_to_create_table(
-            r#"CREATE TABLE test (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
-        );
-        let target = str_to_create_table(r#"CREATE TABLE test (id uuid)"#);
-
-        let r = from_to_table(&start, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" DROP CONSTRAINT fk_id CASCADE"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_add_check_constraint() {
-        let start = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-        let target = str_to_create_table(
-            r#"CREATE TABLE "test" (id uuid, CONSTRAINT check_id CHECK (id = 1))"#,
-        );
-
-        let r = from_to_table(&start, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" ADD CONSTRAINT check_id CHECK (id = 1)"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_drop_check_constraint() {
-        let start = str_to_create_table(
-            r#"CREATE TABLE "test" (id uuid, CONSTRAINT check_id CHECK (id = 1))"#,
-        );
-        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-
-        let r = from_to_table(&start, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" DROP CONSTRAINT check_id CASCADE"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_add_unique_constraint() {
-        let start = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-        let target =
-            str_to_create_table(r#"CREATE TABLE "test" (id uuid, CONSTRAINT id_u UNIQUE (id))"#);
-
-        let r = from_to_table(&start, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" ADD CONSTRAINT id_u UNIQUE (id)"#,
-        )];
-
-        assert_eq!(r, alter);
-    }
-
-    #[test]
-    fn test_drop_unique_constraint() {
-        let start =
-            str_to_create_table(r#"CREATE TABLE "test" (id uuid, CONSTRAINT id_u UNIQUE (id))"#);
-        let target = str_to_create_table(r#"CREATE TABLE "test" (id uuid)"#);
-
-        let r = from_to_table(&start, &target).expect("works");
-
-        let alter = vec![str_to_statement(
-            r#"ALTER TABLE "test" DROP CONSTRAINT id_u CASCADE"#,
-        )];
 
         assert_eq!(r, alter);
     }
@@ -978,7 +320,7 @@ mod test_str_to_str {
     fn str_to_wrapped(s: &str) -> Wrapped {
         let ast = str_to_statement(s);
         match ast {
-            Statement::CreateTable(ct) => Wrapped::CreateTable(ct),
+            Statement::CreateTable(ct) => Wrapped::CreateTable(DeclaredTable::new(ct)),
             Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
             Statement::CreateExtension(CreateExtension { name, .. }) => {
                 Wrapped::CreateExtension { name }
@@ -1001,15 +343,6 @@ mod test_str_to_str {
         let mut parser = parser.try_with_sql(s).expect("SQL");
         parser.parse_statement().expect("Not valid sql")
     }
-}
-
-fn semicolon_token() -> sqlparser::ast::helpers::attached_token::AttachedToken {
-    use sqlparser::ast::helpers::attached_token::AttachedToken;
-    use sqlparser::tokenizer::{Location, Span, Token, TokenWithLocation};
-    AttachedToken(TokenWithLocation::new(
-        Token::SemiColon,
-        Span::new(Location::new(1, 10), Location::new(1, 11)),
-    ))
 }
 
 #[cfg(test)]
@@ -1290,23 +623,6 @@ mod test_str_to_pg {
     }
 
     #[sqlx::test]
-    fn test_add_primary_key_constraint(pool: PgPool) {
-        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
-            .await
-            .expect("Setup");
-        let m = crate::generate_migrations_from_string(
-            r#"CREATE TABLE test (id uuid, PRIMARY KEY(id))"#,
-            &pool,
-        )
-        .await
-        .expect("Migrate");
-
-        let alter = vec![r#"ALTER TABLE test ADD PRIMARY KEY (id)"#];
-
-        assert_eq!(m, alter);
-    }
-
-    #[sqlx::test]
     fn test_add_foreign_key_constraint(pool: PgPool) {
         crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
             .await
@@ -1320,30 +636,6 @@ mod test_str_to_pg {
 
         let alter =
             vec![r#"ALTER TABLE test ADD CONSTRAINT fk_id FOREIGN KEY (id) REFERENCES items(id)"#];
-
-        assert_eq!(m, alter);
-    }
-
-    #[sqlx::test]
-    fn test_drop_foreign_key_constraint(pool: PgPool) {
-        crate::migrate_from_string(
-            r#"
-                CREATE TABLE items (id uuid NOT NULL, PRIMARY KEY(id));
-                CREATE TABLE test (id uuid, CONSTRAINT fk_id FOREIGN KEY(id) REFERENCES items(id))"#,
-            &pool,
-        )
-        .await
-        .expect("Setup");
-        let m = crate::generate_migrations_from_string(
-            r#"
-               CREATE TABLE items (id uuid NOT NULL, PRIMARY KEY(id));
-               CREATE TABLE test (id uuid)"#,
-            &pool,
-        )
-        .await
-        .expect("Migrate");
-
-        let alter = vec![r#"ALTER TABLE "test" DROP CONSTRAINT fk_id CASCADE"#];
 
         assert_eq!(m, alter);
     }
@@ -1405,40 +697,6 @@ mod test_str_to_pg {
     }
 
     #[sqlx::test]
-    fn test_add_check_constraint(pool: PgPool) {
-        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
-            .await
-            .expect("Setup");
-        let m = crate::generate_migrations_from_string(
-            r#"CREATE TABLE test (id uuid, CONSTRAINT check_id CHECK (id = 1))"#,
-            &pool,
-        )
-        .await
-        .expect("Migrate");
-
-        let alter = vec![r#"ALTER TABLE test ADD CONSTRAINT check_id CHECK (id = 1)"#];
-
-        assert_eq!(m, alter);
-    }
-
-    #[sqlx::test]
-    fn test_drop_check_constraint(pool: PgPool) {
-        crate::migrate_from_string(
-            r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 1))"#,
-            &pool,
-        )
-        .await
-        .expect("Setup");
-        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id int)"#, &pool)
-            .await
-            .expect("Migrate");
-
-        let alter = vec![r#"ALTER TABLE "test" DROP CONSTRAINT check_id CASCADE"#];
-
-        assert_eq!(m, alter);
-    }
-
-    #[sqlx::test]
     fn test_same_check_constraint(pool: PgPool) {
         crate::migrate_from_string(
             r#"CREATE TABLE test (id int, CONSTRAINT check_id CHECK (id = 1))"#,
@@ -1476,40 +734,6 @@ mod test_str_to_pg {
             Err(MigrationError::CannotModifyTableConstraint(_, _)) => (),
             _ => panic!("Not the right error {maybe_err:?}"),
         }
-    }
-
-    #[sqlx::test]
-    fn test_add_unique_constraint(pool: PgPool) {
-        crate::migrate_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
-            .await
-            .expect("Setup");
-        let m = crate::generate_migrations_from_string(
-            r#"CREATE TABLE test (id uuid, CONSTRAINT id_u UNIQUE (id))"#,
-            &pool,
-        )
-        .await
-        .expect("Migrate");
-
-        let alter = vec![r#"ALTER TABLE test ADD CONSTRAINT id_u UNIQUE (id)"#];
-
-        assert_eq!(m, alter);
-    }
-
-    #[sqlx::test]
-    fn test_drop_unique_constraint(pool: PgPool) {
-        crate::migrate_from_string(
-            r#"CREATE TABLE test (id uuid, CONSTRAINT id_u UNIQUE (id))"#,
-            &pool,
-        )
-        .await
-        .expect("Setup");
-        let m = crate::generate_migrations_from_string(r#"CREATE TABLE test (id uuid)"#, &pool)
-            .await
-            .expect("Migrate");
-
-        let alter = vec![r#"ALTER TABLE "test" DROP CONSTRAINT id_u CASCADE"#];
-
-        assert_eq!(m, alter);
     }
 
     #[sqlx::test]
@@ -1646,7 +870,7 @@ mod test_str_to_pg {
     fn str_to_wrapped(s: &str) -> Wrapped {
         let ast = str_to_statement(s);
         match ast {
-            Statement::CreateTable(ct) => Wrapped::CreateTable(ct),
+            Statement::CreateTable(ct) => Wrapped::CreateTable(DeclaredTable::new(ct)),
             Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
             Statement::CreateExtension(CreateExtension { name, .. }) => {
                 Wrapped::CreateExtension { name }
