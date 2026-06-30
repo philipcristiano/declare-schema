@@ -27,6 +27,7 @@ pub mod schema;
 pub mod source_postgres;
 mod sqlparser_helpers;
 
+use crate::declared_types::index::DeclaredIndex;
 use altertable::Wrapped;
 use sqlparser::ast::CreateTable;
 use sqlparser::ast::TableConstraint;
@@ -40,7 +41,7 @@ pub enum MigrationError {
     #[error(
         "The table index cannot be modified yet: `From: {0} To: {1}`. Try adding a new index then dropping the old one"
     )]
-    CannotModifyIndex(sqlparser::ast::CreateIndex, sqlparser::ast::CreateIndex),
+    CannotModifyIndex(DeclaredIndex, DeclaredIndex),
     #[error(
         "The table constraint cannot be modified yet: From: `{0}` To: {1}. Try adding a new constraint then dropping the old one"
     )]

@@ -1,4 +1,5 @@
 use crate::MigrationError;
+use crate::declared_types::index::DeclaredIndex;
 use crate::declared_types::table::DeclaredTable;
 use crate::sqlparser_helpers::{object_names_equal, quote_object_name};
 use sqlparser::ast::{CreateExtension, CreateIndex, CreateTable};
@@ -27,7 +28,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
 #[derive(Clone, Debug)]
 pub enum Wrapped {
     CreateTable(DeclaredTable),
-    CreateIndex(CreateIndex),
+    CreateIndex(DeclaredIndex),
     CreateExtension {
         name: sqlparser::ast::Ident,
     },
@@ -45,9 +46,7 @@ impl Display for Wrapped {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Wrapped::CreateTable(wct) => wct.fmt(f),
-            Wrapped::CreateIndex(wci) => {
-                sqlparser::ast::Statement::CreateIndex(wci.to_owned()).fmt(f)
-            }
+            Wrapped::CreateIndex(wci) => wci.fmt(f),
             Wrapped::CreateExtension { name } => {
                 sqlparser::ast::Statement::CreateExtension(CreateExtension {
                     name: name.to_owned(),
@@ -124,7 +123,7 @@ impl Wrapped {
     pub fn try_from(s: Statement) -> anyhow::Result<Wrapped, MigrationError> {
         match s {
             Statement::CreateTable(ct) => Ok(Wrapped::CreateTable(DeclaredTable::new(ct))),
-            Statement::CreateIndex(ci) => Ok(Wrapped::CreateIndex(ci)),
+            Statement::CreateIndex(ci) => Ok(Wrapped::CreateIndex(DeclaredIndex::new(ci))),
             Statement::CreateExtension(CreateExtension { name, .. }) => {
                 Ok(Wrapped::CreateExtension { name })
             }
@@ -159,18 +158,16 @@ impl Wrapped {
                 to_table.statement_from(from_table, &mut r)?
             }
             (Wrapped::CreateTable(to_table), None) => to_table.create(&mut r)?,
-            (Wrapped::CreateIndex(to_index), _) => {
-                if let Some(Wrapped::CreateIndex(from)) = matched_from {
-                    if from != to_index {
-                        return Err(MigrationError::CannotModifyIndex(
-                            from.clone(),
-                            to_index.clone(),
-                        ));
-                    }
-                    eprintln!("TODO: Existing index matched, should check for changes");
-                } else {
-                    r.push(Statement::CreateIndex(to_index.clone()));
+            (Wrapped::CreateIndex(to_index), Some(Wrapped::CreateIndex(from_index))) => {
+                if from_index != to_index {
+                    return Err(MigrationError::CannotModifyIndex(
+                        from_index.clone(),
+                        to_index.clone(),
+                    ));
                 }
+            }
+            (Wrapped::CreateIndex(to_index), None) => {
+                to_index.create(&mut r)?;
             }
             (Wrapped::CreateExtension { name }, _) => {
                 if let None = matched_from {
@@ -321,7 +318,7 @@ mod test_str_to_str {
         let ast = str_to_statement(s);
         match ast {
             Statement::CreateTable(ct) => Wrapped::CreateTable(DeclaredTable::new(ct)),
-            Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
+            Statement::CreateIndex(ci) => Wrapped::CreateIndex(DeclaredIndex::new(ci)),
             Statement::CreateExtension(CreateExtension { name, .. }) => {
                 Wrapped::CreateExtension { name }
             }
@@ -871,7 +868,7 @@ mod test_str_to_pg {
         let ast = str_to_statement(s);
         match ast {
             Statement::CreateTable(ct) => Wrapped::CreateTable(DeclaredTable::new(ct)),
-            Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
+            Statement::CreateIndex(ci) => Wrapped::CreateIndex(DeclaredIndex::new(ci)),
             Statement::CreateExtension(CreateExtension { name, .. }) => {
                 Wrapped::CreateExtension { name }
             }
