@@ -20,7 +20,7 @@ jobs:
     env:
       SQLX_OFFLINE: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build
         run: nix develop --command cargo build
 
@@ -40,7 +40,7 @@ jobs:
 
     runs-on: nixos-runner
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build
         env:
           DATABASE_URL: postgres://declare-schema:declare-schema@pgsql/declare-schema?sslmode=disable
@@ -62,7 +62,7 @@ jobs:
 
     runs-on: nixos-runner
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build
         env:
           DATABASE_URL: postgres://declare-schema:declare-schema@pgsql/declare-schema?sslmode=disable
