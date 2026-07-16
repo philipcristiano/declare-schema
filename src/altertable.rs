@@ -1,6 +1,8 @@
 use crate::MigrationError;
 use sqlparser::ast::table_constraints::{CheckConstraint, ForeignKeyConstraint, UniqueConstraint};
-use sqlparser::ast::{AlterTable, CreateExtension, CreateIndex, CreateTable, DropBehavior};
+use sqlparser::ast::{
+    AlterTable, CreateExtension, CreateIndex, CreateTable, CreateView, DropBehavior,
+};
 use sqlparser::ast::{AlterTableOperation, ObjectName, ObjectNamePart, Statement, TableConstraint};
 use std::fmt::Display;
 
@@ -32,6 +34,15 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                     r.append(&mut changes);
                 } else {
                     r.push(Statement::CreateTable(to_table.clone()));
+                }
+            }
+            Wrapped::CreateView(to_view) => {
+                if let Some(Wrapped::CreateView(from)) = matched_from {
+                    panic!("Alter view");
+                    //let mut changes = from_to_table(&from, &to_table)?;
+                    //r.append(&mut changes);
+                } else {
+                    r.push(Statement::CreateView(to_view.clone()));
                 }
             }
             Wrapped::CreateIndex(to_index) => {
@@ -87,6 +98,20 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                     let quoted_name = quote_object_name(&ct.name);
                     r.push(Statement::Drop {
                         object_type: sqlparser::ast::ObjectType::Table,
+                        table: None,
+                        if_exists: false,
+                        names: vec![quoted_name],
+                        cascade: true,
+                        purge: false,
+                        restrict: false,
+                        temporary: false,
+                    })
+                }
+                Wrapped::CreateView(cv) => {
+                    let quoted_name = quote_object_name(&cv.name);
+                    println!("drop {quoted_name} {}", cv.name);
+                    r.push(Statement::Drop {
+                        object_type: sqlparser::ast::ObjectType::View,
                         table: None,
                         if_exists: false,
                         names: vec![quoted_name],
@@ -550,6 +575,7 @@ fn compare_constraints(
 pub enum Wrapped {
     CreateTable(CreateTable),
     CreateIndex(CreateIndex),
+    CreateView(CreateView),
     CreateExtension {
         name: sqlparser::ast::Ident,
     },
@@ -567,6 +593,7 @@ impl Display for Wrapped {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Wrapped::CreateTable(wct) => wct.fmt(f),
+            Wrapped::CreateView(wcv) => wcv.fmt(f),
             Wrapped::CreateIndex(wci) => {
                 sqlparser::ast::Statement::CreateIndex(wci.to_owned()).fmt(f)
             }
@@ -612,6 +639,11 @@ impl Wrapped {
                     return object_names_equal(&ct.name, &other_table.name);
                 }
             }
+            Self::CreateView(cv) => {
+                if let Self::CreateView(other_view) = other {
+                    return object_names_equal(&cv.name, &other_view.name);
+                }
+            }
             Self::CreateIndex(ci) => {
                 if let Self::CreateIndex(other_index) = other {
                     match (&ci.name, &other_index.name) {
@@ -640,6 +672,7 @@ impl Wrapped {
     fn name(&self) -> Option<ObjectName> {
         match self {
             Wrapped::CreateTable(wct) => Some(wct.name.clone()),
+            Wrapped::CreateView(wcv) => Some(wcv.name.clone()),
             Wrapped::CreateIndex(wci) => wci.name.clone(),
             Wrapped::CreateExtension { name } => {
                 Some(ObjectName(vec![ObjectNamePart::Identifier(name.clone())]))
@@ -654,6 +687,7 @@ impl Wrapped {
     pub fn try_from(s: Statement) -> anyhow::Result<Wrapped, MigrationError> {
         match s {
             Statement::CreateTable(ct) => Ok(Wrapped::CreateTable(ct)),
+            Statement::CreateView(cv) => Ok(Wrapped::CreateView(cv)),
             Statement::CreateIndex(ci) => Ok(Wrapped::CreateIndex(ci)),
             Statement::CreateExtension(CreateExtension { name, .. }) => {
                 Ok(Wrapped::CreateExtension { name })
@@ -801,6 +835,22 @@ mod test_str_to_str {
         let r = from_to(start, target).expect("works");
 
         let alter = vec![str_to_statement(r#"DROP TABLE "test" CASCADE"#)];
+
+        assert_eq!(r, alter);
+    }
+
+    #[test]
+    fn test_create_view() {
+        let start = vec![];
+        let target = vec![str_to_wrapped(
+            r#"CREATE VIEW "test_view" AS SELECT 1 AS a"#,
+        )];
+
+        let r = from_to(start, target).expect("works");
+
+        let alter = vec![str_to_statement(
+            r#"CREATE VIEW "test_view" AS SELECT 1 AS a"#,
+        )];
 
         assert_eq!(r, alter);
     }
@@ -970,11 +1020,12 @@ mod test_str_to_str {
         let ast = str_to_statement(s);
         match ast {
             Statement::CreateTable(ct) => Wrapped::CreateTable(ct),
+            Statement::CreateView(cv) => Wrapped::CreateView(cv),
             Statement::CreateIndex(ci) => Wrapped::CreateIndex(ci),
             Statement::CreateExtension(CreateExtension { name, .. }) => {
                 Wrapped::CreateExtension { name }
             }
-            _ => panic!("Expected a CREATE TABLE statement"),
+            _ => panic!("Unhandled relation type"),
         }
     }
 
@@ -1499,6 +1550,32 @@ mod test_str_to_pg {
             .expect("Migrate");
 
         let alter = vec![r#"ALTER TABLE "test" DROP CONSTRAINT id_u CASCADE"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_add_view(pool: PgPool) {
+        let m =
+            crate::generate_migrations_from_string(r#"CREATE VIEW "test_view" AS SELECT 1"#, &pool)
+                .await
+                .expect("Migrate");
+
+        let alter = vec![r#"CREATE VIEW "test_view" AS SELECT 1"#];
+
+        assert_eq!(m, alter);
+    }
+    #[sqlx::test]
+    fn test_drop_view(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE VIEW "test_view" AS SELECT 1 AS a"#, &pool)
+            .await
+            .expect("Setup");
+        println!("generate_migrattions_from_string");
+        let m = crate::generate_migrations_from_string(r#""#, &pool)
+            .await
+            .expect("Migrate");
+
+        let alter = vec![r#"DROP VIEW "test_view" CASCADE"#];
 
         assert_eq!(m, alter);
     }

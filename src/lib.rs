@@ -45,6 +45,8 @@ pub enum MigrationError {
     CannotModifyTableConstraint(TableConstraint, TableConstraint),
     #[error("These are not the same tables {0} {1}")]
     TablesNotMatching(CreateTable, CreateTable),
+    #[error("No name was found for the view")]
+    PGSourceViewError(String),
     #[error("Problems while connecting/executing SQL")]
     ExecSqlError(#[from] sqlx::Error),
     #[error("Problems while parsing SQL")]
@@ -76,7 +78,7 @@ pub async fn migrate_schema_from_string(
     pool: &PgPool,
 ) -> Result<(), MigrationError> {
     let src_state = crate::source_postgres::from_pool_schema(&pool, schema_name).await?;
-    migrate_from_src(src_state, to_src, schema_name, &pool).await // ← pass schema_name
+    migrate_from_src(src_state, to_src, schema_name, &pool).await
 }
 
 async fn migrate_from_src(

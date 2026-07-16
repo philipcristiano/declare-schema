@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select table_schema, table_name from information_schema.tables",
+  "query": "select table_schema, table_name, table_type as \"table_type: PGTableType\" from information_schema.tables where table_schema = $1",
   "describe": {
     "columns": [
       {
@@ -24,15 +24,29 @@
             "name": "table_name"
           }
         }
+      },
+      {
+        "ordinal": 2,
+        "name": "table_type: PGTableType",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "information_schema.tables",
+            "name": "table_type"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Name"
+      ]
     },
     "nullable": [
+      true,
       true,
       true
     ]
   },
-  "hash": "fd76c90c3e604ac907247b7fb6d1561cbf7f9437e9de11a062e3bcf67aef4740"
+  "hash": "5b0f64d69edf7b3f488f329b98b45cf3a24f98f974a94159b392c3e9b2d1d1f0"
 }

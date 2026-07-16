@@ -1,7 +1,7 @@
 use crate::MigrationError;
 use crate::altertable::Wrapped;
 use sqlparser::ast::helpers::stmt_create_table::CreateTableBuilder;
-use sqlparser::ast::{ColumnDef, CreateExtension, Ident, ObjectName};
+use sqlparser::ast::{ColumnDef, CreateExtension, CreateView, Ident, ObjectName};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -118,6 +118,16 @@ async fn pg_extensions(c: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationError>
 struct PGTable {
     table_schema: Option<String>,
     table_name: Option<String>,
+    table_type: Option<PGTableType>,
+}
+
+#[derive(sqlx::Type)]
+#[sqlx(type_name = "text", rename_all = "UPPERCASE")]
+enum PGTableType {
+    #[sqlx(rename = "BASE TABLE")]
+    BaseTable,
+    #[sqlx(rename = "VIEW")]
+    View,
 }
 #[derive(Clone, Debug)]
 struct PGTableColumn {
@@ -135,6 +145,58 @@ struct PGTableConstraint {
     definition: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+struct PGView {
+    view_definition: Option<String>,
+}
+
+async fn pg_view(
+    c: &sqlx::PgPool,
+    schema: &str,
+    view_name: Option<String>,
+) -> Result<Wrapped, MigrationError> {
+    if let Some(name) = view_name {
+        let db_view = sqlx::query_as!(
+            PGView,
+            "SELECT
+                view_definition
+            FROM information_schema.views
+            WHERE table_schema = $1
+            AND table_name = $2",
+            schema,
+            name
+        )
+        .fetch_one(c)
+        .await?;
+        #[cfg(test)]
+        println!("view def source {:?}", db_view.view_definition);
+        let statement = string_to_query(db_view.view_definition)?;
+        let v = CreateView {
+            cluster_by: vec![],
+            columns: vec![],
+            comment: None,
+            copy_grants: false,
+            if_not_exists: false,
+            name: string_to_object_name(Some(name))?,
+            materialized: false,
+            name_before_not_exists: false,
+            or_alter: false,
+            query: statement,
+            or_replace: false,
+            secure: false,
+            temporary: false,
+            to: None,
+            options: sqlparser::ast::CreateTableOptions::None,
+            with_no_schema_binding: false,
+            params: None,
+        };
+        Ok(Wrapped::CreateView(v))
+    } else {
+        Err(MigrationError::PGSourceViewError(
+            "No name for view found".to_string(),
+        ))
+    }
+}
 async fn table_columns(
     c: &sqlx::PgPool,
     schema: String,
@@ -208,7 +270,7 @@ pub async fn from_pool(pool: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationErr
         .expect("Couldn't get current schema");
     let db_tables = sqlx::query_as!(
         PGTable,
-        "select table_schema, table_name from information_schema.tables where table_schema = current_schema()",
+        "select table_schema, table_name, table_type as \"table_type: PGTableType\" from information_schema.tables where table_schema = current_schema()",
     )
     .fetch_all(pool)
     .await?;
@@ -220,7 +282,7 @@ pub async fn from_pool_schema(
 ) -> Result<Vec<Wrapped>, MigrationError> {
     let db_tables = sqlx::query_as!(
         PGTable,
-        "select table_schema, table_name from information_schema.tables where table_schema = $1",
+        "select table_schema, table_name, table_type as \"table_type: PGTableType\" from information_schema.tables where table_schema = $1",
         schema
     )
     .fetch_all(pool)
@@ -234,21 +296,36 @@ async fn tables_to_wrapped(
     schema: &str,
 ) -> Result<Vec<Wrapped>, MigrationError> {
     let mut table_map: HashMap<ObjectName, CreateTableBuilder> = HashMap::new();
+    let mut views: Vec<Wrapped> = vec![];
     for db_table in db_tables {
         let table_schema = db_table.table_schema.expect("Table needs a schema");
         #[cfg(test)]
         println!("table {:?}.{:?}", schema, db_table.table_name);
+        match &db_table.table_type {
+            Some(PGTableType::BaseTable) => {
+                if let Some(table_name) = db_table.table_name {
+                    let object_name = string_to_object_name(Some(table_name.clone()))?;
+                    let columns =
+                        table_columns(pool, table_schema.to_string(), table_name.clone()).await?;
+                    let constraints =
+                        table_constraints(pool, schema.to_string(), table_name.clone()).await?;
+                    let b = CreateTableBuilder::new(object_name.clone())
+                        .columns(columns)
+                        .constraints(constraints);
 
-        if let Some(table_name) = db_table.table_name {
-            let object_name = string_to_object_name(Some(table_name.clone()))?;
-            let columns = table_columns(pool, table_schema.to_string(), table_name.clone()).await?;
-            let constraints =
-                table_constraints(pool, schema.to_string(), table_name.clone()).await?;
-            let b = CreateTableBuilder::new(object_name.clone())
-                .columns(columns)
-                .constraints(constraints);
+                    table_map.insert(object_name, b);
+                }
+            }
+            Some(PGTableType::View) => {
+                let create_view = pg_view(pool, &schema, db_table.table_name).await?;
+                #[cfg(test)]
+                println!("create_view: {create_view}");
+                views.push(create_view);
+            }
 
-            table_map.insert(object_name, b);
+            _ => {
+                panic!("Unhandled!")
+            }
         }
     }
 
@@ -258,6 +335,7 @@ async fn tables_to_wrapped(
         .collect();
     let mut re = re?;
 
+    re.append(&mut views);
     let mut indexes = pg_indexes(&pool, schema.to_string()).await?;
     re.append(&mut indexes);
     let mut extensions = pg_extensions(&pool).await?;
@@ -324,6 +402,21 @@ fn string_to_create_index(os: Option<String>) -> Result<sqlparser::ast::Statemen
         let mut parser = parser.try_with_sql(&s)?;
 
         Ok(parser.parse_statement()?)
+    } else {
+        Err(MigrationError::SqlParseTypeError(
+            "No string value".to_string(),
+        ))
+    }
+}
+
+fn string_to_query(os: Option<String>) -> Result<Box<sqlparser::ast::Query>, MigrationError> {
+    if let Some(s) = os {
+        let dialect = sqlparser::dialect::PostgreSqlDialect {};
+        let parser = sqlparser::parser::Parser::new(&dialect);
+        let mut parser = parser.try_with_sql(&s)?;
+
+        let (tf, q) = parser.parse_as_query()?;
+        Ok(q)
     } else {
         Err(MigrationError::SqlParseTypeError(
             "No string value".to_string(),
