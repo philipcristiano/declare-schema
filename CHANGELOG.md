@@ -6,6 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.22](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.21...v0.0.22) - 2026-07-16
+
+### Added
+
+- Simple support for CREATE VIEW
+
+### Other
+
+- Merge pull request 'chore(deps): update actions/checkout action to v7' ([#26](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/pulls/26)) from renovate/actions-checkout-7.x into main
+- *(deps)* update rust docker tag to v1.97
+
 ## [0.0.21](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.20...v0.0.21) - 2026-06-27
 
 ### Fixed
