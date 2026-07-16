@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                view_definition\n            FROM information_schema.views\n            WHERE table_schema = $1\n            AND table_name = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "view_definition",
+        "type_info": "Varchar",
+        "origin": {
+          "Table": {
+            "table": "information_schema.views",
+            "name": "view_definition"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Name",
+        "Name"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "b2cc32e52333cf4b7692f09d52d37503be811852cc049958aef2a3c859cda1a6"
+}
