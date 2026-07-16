@@ -38,7 +38,9 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
             }
             Wrapped::CreateView(to_view) => {
                 if let Some(Wrapped::CreateView(from)) = matched_from {
-                    panic!("Alter view");
+                    let mut replacement_view = to_view.clone();
+                    replacement_view.or_replace = true;
+                    r.push(Statement::CreateView(replacement_view));
                     //let mut changes = from_to_table(&from, &to_table)?;
                     //r.append(&mut changes);
                 } else {
@@ -1576,6 +1578,24 @@ mod test_str_to_pg {
             .expect("Migrate");
 
         let alter = vec![r#"DROP VIEW "test_view" CASCADE"#];
+
+        assert_eq!(m, alter);
+    }
+
+    #[sqlx::test]
+    fn test_alter_view(pool: PgPool) {
+        crate::migrate_from_string(r#"CREATE VIEW "test_view" AS SELECT 1 AS a"#, &pool)
+            .await
+            .expect("Setup");
+        println!("generate_migrattions_from_string");
+        let m = crate::generate_migrations_from_string(
+            r#"CREATE VIEW "test_view" AS SELECT 1 AS a, 2 as b"#,
+            &pool,
+        )
+        .await
+        .expect("Migrate");
+
+        let alter = vec![r#"CREATE OR REPLACE VIEW "test_view" AS SELECT 1 AS a, 2 AS b"#];
 
         assert_eq!(m, alter);
     }
