@@ -6,6 +6,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.23](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.22...v0.0.23) - 2026-07-16
+
+### Fixed
+
+- REPLACE VIEW support
+
+### Other
+
+- *(deps)* lock file maintenance
+
 ## [0.0.22](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.21...v0.0.22) - 2026-07-16
 
 ### Added
