@@ -68,6 +68,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                         if_not_exists: false,
                         schema: None,
                         version: None,
+                        with_keyword: false,
                     }))
                 }
             }
@@ -87,6 +88,7 @@ pub fn from_to(froms: Vec<Wrapped>, tos: Vec<Wrapped>) -> Result<Vec<Statement>,
                         options: options.to_owned(),
                         default_collate_spec: default_collate_spec.to_owned(),
                         clone: clone.to_owned(),
+                        or_replace: false,
                     })
                 }
             }
@@ -606,6 +608,7 @@ impl Display for Wrapped {
                     cascade: false,
                     schema: None,
                     version: None,
+                    with_keyword: false,
                 })
                 .fmt(f)
             }
@@ -623,6 +626,7 @@ impl Display for Wrapped {
                 options: options.to_owned(),
                 default_collate_spec: default_collate_spec.to_owned(),
                 clone: clone.to_owned(),
+                or_replace: false,
             }
             .fmt(f),
         }
@@ -701,6 +705,7 @@ impl Wrapped {
                 options,
                 default_collate_spec,
                 clone,
+                or_replace: false,
             } => Ok(Wrapped::CreateSchema {
                 schema_name,
                 if_not_exists,
