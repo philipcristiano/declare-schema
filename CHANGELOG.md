@@ -6,6 +6,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.24](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.23...v0.0.24) - 2026-11-18
+
+### Fixed
+
+- *(deps)* update rust crate sqlparser to 0.64.0
+
+### Other
+
+- *(deps)* update rust docker tag to v1.100
+- *(deps)* lock file maintenance
+- *(deps)* update rust docker tag to v1.99
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* lock file maintenance
+- *(deps)* update rust docker tag to v1.98
+
 ## [0.0.23](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.22...v0.0.23) - 2026-07-16
 
 ### Fixed
