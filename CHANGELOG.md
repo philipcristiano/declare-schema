@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.25](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.24...v0.0.25) - 2026-11-18
+
+### Other
+
+- *(deps)* lock file maintenance
+- Update sqlx
+
 ## [0.0.24](https://forgejo.home.cristiano.cloud/philipcristiano/declare-schema/compare/v0.0.23...v0.0.24) - 2026-11-18
 
 ### Fixed
