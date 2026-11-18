@@ -108,6 +108,7 @@ async fn pg_extensions(c: &sqlx::PgPool) -> Result<Vec<Wrapped>, MigrationError>
             if_not_exists: false,
             schema: None,
             version: None,
+            with_keyword: false,
         });
         let wrapped = Wrapped::try_from(statement)?;
         r.push(wrapped);
