@@ -46,7 +46,7 @@ jobs:
   postgres_18:
     services:
       pgsql:
-        image: postgres:18
+        image: postgres:19
         env:
           POSTGRES_DB: declare-schema
           POSTGRES_PASSWORD: declare-schema
@@ -68,7 +68,7 @@ jobs:
   postgres_17:
     services:
       pgsql:
-        image: postgres:17
+        image: postgres:19
         env:
           POSTGRES_DB: declare-schema
           POSTGRES_PASSWORD: declare-schema
